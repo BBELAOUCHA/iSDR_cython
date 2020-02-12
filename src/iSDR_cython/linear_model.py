@@ -2,11 +2,11 @@ import numpy as np
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
-
+from sklearn.linear_model import Lasso, Ridge
 from . import cyISDR as cd_fast
-
-class iSDR_step():
-    def __init__(self, l21_ratio=1.0,  copy_X=True, max_iter=1000, tol=1e-6,
+from . import utils
+class iSDR():
+    def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True, max_iter=1000, tol=1e-6,
                  random_state=None, selection='cyclic'):
         """Linear Model trained with L21 prior as regularizer (aka the Mulitasklasso)
         this function implements what is called iSDR (S-step) optimization
@@ -40,6 +40,7 @@ class iSDR_step():
         y : (n_samples, n_targets) which represents the EEG/MEG data
         """
         self.l21_ratio = l21_ratio
+        self.la = la
         self.max_iter = max_iter
         self.copy_X = copy_X
         self.tol = tol
@@ -93,7 +94,7 @@ class iSDR_step():
         self.coef_ = self.coef_.reshape((n_features//model_p, n_tasks + model_p - 1), order='F')
         return self
     
-    def reconstruct(self, X, y, model_p=1):
+    def S_step(self, X, y, model_p=1):
         """Fit model with coordinate descent.
 
         Parameters
@@ -113,4 +114,45 @@ class iSDR_step():
         self._fit(X, y, model_p)
         return self.coef_ 
 
+
+    def A_step(self, X, y, model_p, method):
+        nbr_samples = y.shape[1]
+        G = utils.construct_J(X, self.coef_, model_p)
+        if method == 'lasso':
+            model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
+        else:
+            model = Ridge(alpha=self.la, fit_intercept=False, copy_X=True)
+        model.fit(G, y.reshape(-1, order='F'))
+        
+        self.Acoef_ = model.coef_.reshape((X.shape[1], X.shape[1]*model_p), order='C')
+        return self.Acoef_
+
+    def solver(self, G, M, nbr_iter=1, model_p=1, A=None, method='lasso'):
+        self.n_sensor, self.n_source = G.shape 
+        if A is None:
+            A = np.random.normal(0, 1, (self.n_source, self.n_source*model_p))
+            for i in range(self.n_source):
+                A[i, :] /= np.linalg.norm(A[i, :])
+        active_regions = np.arange(self.n_source)
+        self.active_set = []
+        self.dual_gap = []
+        self.mxne_iter = []
+        for i in range(nbr_iter):
+            self.S_step(np.dot(G, A), M, model_p)
+            A = self.A_step(G, M, model_p, method)
+            idx = np.std(self.coef_, axis=1) > 0
+            active_regions = active_regions[idx]
+            self.active_set.append(active_regions)
+            self.dual_gap.append(self.dual_gap_)
+            self.mxne_iter.append(self.n_iter_)
+            self.nbr_iter = i
+            if len(active_regions) == A.shape[0]:
+                break
+            else:
+                G = G[:, idx]
+                A = A[idx, :]
+                ix = []
+                for x in range(model_p):
+                    ix.extend(idx)
+                A = A[:, np.array(ix)]
 

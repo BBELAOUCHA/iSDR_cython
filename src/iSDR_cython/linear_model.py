@@ -123,14 +123,18 @@ class iSDR():
             model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
         else:
             model = Ridge(alpha=self.la, fit_intercept=False, copy_X=True)
-        print(G.shape, y.shape)
-        model.fit(G, y[:, 2*model_p + 1:].reshape(-1, order='F'))
+        if model_p == 1:
+            model.fit(G, y[:, 2*model_p:-1].reshape(-1, order='F'))
+        else:
+            model.fit(G, y[:, 2*model_p+1:].reshape(-1, order='F'))
         A = np.zeros(SC.shape[0]*SC.shape[0]*model_p)
         A[idx] = model.coef_
         self.Acoef_ = A.reshape((X.shape[1], X.shape[1]*model_p), order='C')
         return self.Acoef_
 
     def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None, method='lasso'):
+        if model_p < 1:
+            raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
         self.n_sensor, self.n_source = G.shape 
         if A is None:
             A = np.random.normal(0, 1, (self.n_source, self.n_source*model_p))
@@ -142,7 +146,7 @@ class iSDR():
         self.mxne_iter = []
         nbr_orig = G.shape[1]
         for i in range(nbr_iter):
-            print("Iteration %s"%i)
+            print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
             self.S_step(np.dot(G, A), M, model_p)
             idx = np.std(self.coef_, axis=1) > 0
             active_regions = active_regions[idx]
@@ -151,7 +155,6 @@ class iSDR():
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
             if len(active_regions) == A.shape[0] or (len(active_regions) == nbr_orig and i > 0):
-                print(len(active_regions) , A.shape[0] , len(active_regions) ,nbr_orig)
                 self.Acoef_ = A
                 break
             else:
@@ -165,7 +168,6 @@ class iSDR():
             
             A = self.A_step(G, M, SC, model_p, method)
             self.Acoef_ = A
-            print(A)
             self.n_source = np.sum(idx)
     def reorder_A(self):
         A = self.Acoef_.copy()

@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
@@ -115,19 +116,21 @@ class iSDR():
         return self.coef_ 
 
 
-    def A_step(self, X, y, model_p, method):
+    def A_step(self, X, y, SC, model_p, method):
         nbr_samples = y.shape[1]
-        G = utils.construct_J(X, self.coef_, model_p)
+        G, idx = utils.construct_J(X, SC, self.coef_[:, 2*model_p:-1], model_p)
         if method == 'lasso':
             model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
         else:
             model = Ridge(alpha=self.la, fit_intercept=False, copy_X=True)
-        model.fit(G, y.reshape(-1, order='F'))
-        
-        self.Acoef_ = model.coef_.reshape((X.shape[1], X.shape[1]*model_p), order='C')
+        print(G.shape, y.shape)
+        model.fit(G, y[:, 2*model_p + 1:].reshape(-1, order='F'))
+        A = np.zeros(SC.shape[0]*SC.shape[0]*model_p)
+        A[idx] = model.coef_
+        self.Acoef_ = A.reshape((X.shape[1], X.shape[1]*model_p), order='C')
         return self.Acoef_
 
-    def solver(self, G, M, nbr_iter=1, model_p=1, A=None, method='lasso'):
+    def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None, method='lasso'):
         self.n_sensor, self.n_source = G.shape 
         if A is None:
             A = np.random.normal(0, 1, (self.n_source, self.n_source*model_p))
@@ -137,22 +140,49 @@ class iSDR():
         self.active_set = []
         self.dual_gap = []
         self.mxne_iter = []
+        nbr_orig = G.shape[1]
         for i in range(nbr_iter):
+            print("Iteration %s"%i)
             self.S_step(np.dot(G, A), M, model_p)
-            A = self.A_step(G, M, model_p, method)
             idx = np.std(self.coef_, axis=1) > 0
             active_regions = active_regions[idx]
             self.active_set.append(active_regions)
             self.dual_gap.append(self.dual_gap_)
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
-            if len(active_regions) == A.shape[0]:
+            print("IDX ",np.sum(idx), np.std(self.coef_, axis=1))
+            if len(active_regions) == A.shape[0] or (len(active_regions) == nbr_orig and i > 0):
+                print(len(active_regions) , A.shape[0] , len(active_regions) ,nbr_orig)
+                self.Acoef_ = A
                 break
             else:
                 G = G[:, idx]
-                A = A[idx, :]
-                ix = []
-                for x in range(model_p):
-                    ix.extend(idx)
-                A = A[:, np.array(ix)]
-
+                SC = SC[idx, ]
+                SC = SC[:, idx]
+                self.coef_ = self.coef_[idx, :]
+            if np.sum(idx) == 0:
+                #print("IDX ",np.sum(idx), np.std(self.coef_, axis=1))
+                break
+            
+            A = self.A_step(G, M, SC, model_p, method)
+            self.Acoef_ = A
+            print(A)
+            self.n_source = np.sum(idx)
+    def reorder_A(self):
+        A = self.Acoef_.copy()
+        nx, ny = self.Acoef_.shape
+        m_p = ny//nx
+        for i in range(m_p):
+            A[:, i*nx:(i+1)*nx] = self.Acoef_[:, (m_p - i - 1)*nx:(m_p - i)*nx]
+        return A
+    def get_phi(self):
+        A = self.reorder_A()
+        nx, ny = A.shape
+        self.Phi = np.zeros((ny, ny))
+        self.Phi[:nx, :] = A
+        for i in range(ny - nx):
+            self.Phi[nx+i, i] = 1
+        self.eigs = np.linalg.eigvals(self.Phi)
+        df = {'real':self.eigs.real, 'imag':np.imag(self.eigs),
+        'eig': ['eig_%s'%i for i in range(len(self.eigs))]}
+        self.eigs = pd.DataFrame(df).set_index('eig')

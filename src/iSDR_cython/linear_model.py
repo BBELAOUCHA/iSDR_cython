@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
@@ -7,10 +8,11 @@ from sklearn.linear_model import Lasso, Ridge
 from . import cyISDR as cd_fast
 from . import utils
 class iSDR():
-    def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True, max_iter=1000, tol=1e-6,
-                 random_state=None, selection='cyclic'):
-        """Linear Model trained with L21 prior as regularizer (aka the Mulitasklasso)
-        this function implements what is called iSDR (S-step) optimization
+    def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True,
+    max_iter=1000, tol=1e-6, random_state=None, selection='cyclic'):
+        """Linear Model trained with the modified L21 prior as regularizer 
+           (aka the Mulitasklasso) and ISDR
+           this function implements what is called iSDR (S-step) optimization
             ||y - X_A w||^2_2 + l21_ratio * ||w||_21
 
         Parameters
@@ -95,7 +97,7 @@ class iSDR():
         self.coef_ = self.coef_.reshape((n_features//model_p, n_tasks + model_p - 1), order='F')
         return self
     
-    def S_step(self, X, y, model_p=1):
+    def S_step(self, X, y):
         """Fit model with coordinate descent.
 
         Parameters
@@ -112,24 +114,24 @@ class iSDR():
         ----------
         self.coef_: (n_features, n_targets + model_p - 1)
         """
-        self._fit(X, y, model_p)
+        self._fit(X, y, self.m_p)
         return self.coef_ 
 
 
-    def A_step(self, X, y, SC, model_p, method):
+    def A_step(self, X, y, SC, method):
         nbr_samples = y.shape[1]
-        G, idx = utils.construct_J(X, SC, self.coef_[:, 2*model_p:-1], model_p)
+        G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-1], self.m_p)
         if method == 'lasso':
             model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
         else:
             model = Ridge(alpha=self.la, fit_intercept=False, copy_X=True)
-        if model_p == 1:
-            model.fit(G, y[:, 2*model_p:-1].reshape(-1, order='F'))
-        else:
-            model.fit(G, y[:, 2*model_p+1:].reshape(-1, order='F'))
-        A = np.zeros(SC.shape[0]*SC.shape[0]*model_p)
+        #if self.m_p == 1:
+        #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
+        #else:
+        model.fit(G, y[:, 2*self.m_p+1:].reshape(-1, order='F'))
+        A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_
-        self.Acoef_ = A.reshape((X.shape[1], X.shape[1]*model_p), order='C')
+        self.Acoef_ = A.reshape((X.shape[1], X.shape[1]*self.m_p), order='C')
         return self.Acoef_
 
     def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None, method='lasso'):
@@ -145,9 +147,10 @@ class iSDR():
         self.dual_gap = []
         self.mxne_iter = []
         nbr_orig = G.shape[1]
+        self.m_p = model_p
         for i in range(nbr_iter):
             print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
-            self.S_step(np.dot(G, A), M, model_p)
+            self.S_step(np.dot(G, A), M)
             idx = np.std(self.coef_, axis=1) > 0
             active_regions = active_regions[idx]
             self.active_set.append(active_regions)
@@ -166,7 +169,7 @@ class iSDR():
                 #print("IDX ",np.sum(idx), np.std(self.coef_, axis=1))
                 break
             
-            A = self.A_step(G, M, SC, model_p, method)
+            A = self.A_step(G, M, SC, method)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
     def reorder_A(self):
@@ -187,3 +190,13 @@ class iSDR():
         df = {'real':self.eigs.real, 'imag':np.imag(self.eigs),
         'eig': ['eig_%s'%i for i in range(len(self.eigs))]}
         self.eigs = pd.DataFrame(df).set_index('eig')
+    
+    def plot_effective(self, fmt='.3f', annot=True, cmap=None):
+        A = self.Acoef_
+        active = self.active_set[-1]
+        ylabel = ['S%s'%s for s in active]
+        xlabel = []
+        for i in range(self.m_p):
+            xlabel.extend(ylabel)
+        sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
+        yticklabels=ylabel,cmap=cmap)

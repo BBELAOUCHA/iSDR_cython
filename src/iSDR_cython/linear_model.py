@@ -150,7 +150,6 @@ class iSDR():
             self.dual_gap.append(self.dual_gap_)
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
-            print("IDX ",np.sum(idx), np.std(self.coef_, axis=1))
             if len(active_regions) == A.shape[0] or (len(active_regions) == nbr_orig and i > 0):
                 print(len(active_regions) , A.shape[0] , len(active_regions) ,nbr_orig)
                 self.Acoef_ = A

@@ -16,7 +16,7 @@ Where:
 
      * J: Brain activity (distributed source model with fixed position), J_t at time t
 
-     * lambda: regularization parameter that controls the sparsity of J
+     * lambda: regularization parameter that controls the sparsity of J )0, 100(
      
      * alpha: regularizatiobn parameter that controls the sparsity/minimum norm or A
      

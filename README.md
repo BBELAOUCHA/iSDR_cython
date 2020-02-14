@@ -3,6 +3,8 @@
 A solver of EEG/MEG inverse problem using a multivariate auto-regressive model (MVAR) on the source space
 
 
+<img src="https://latex.codecogs.com/gif.latex?%5Cleft%20%5C%7C%20M%20-%20G%5Csum%20A_iJ_t%5Cright%20%5C%7C_2%5E2%20&plus;%20%5Clambda%5Cleft%20%5C%7C%20J%20%5Cright%20%5C%7C_%7B%2012%7D%20&plus;%20%5Calpha%5Cleft%20%5C%7C%20S_cA%20%5Cright%20%5C%7C_%7B1%20or%202%7D"
+
 iSDR_cython is a Cython package for solving the EEG/MEG inverse problem using structural/functional prior on the causality between brain regions/sources.
 It implements the inverse solver iSDR (check Cite section for more details), It worth noting here that this implementation is a bit different from the original 
 paper since now we are assuming a prior on the Multivariate Autoregressive Model coefficients
@@ -15,9 +17,11 @@ scipy~=1.4
 scikit-learn~=0.22
 
 
-## Installation and Usage
+## Installation
 
 pip3 install .
+
+## Usage
 
 For how to use this package to reconstruct the brain activation from EEG/MEG
 check examples/iSDR_example

@@ -163,7 +163,7 @@ class iSDR():
         n_active == number of active sources/regions
         """
         nbr_samples = y.shape[1]
-        G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-1], self.m_p)
+        G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-self.m_p-1], self.m_p)
         if method.lower() == 'lasso':
             model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
         elif method.lower() == 'ridge':
@@ -173,7 +173,7 @@ class iSDR():
         #if self.m_p == 1:
         #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
         #else:
-        model.fit(G, y[:, 2*self.m_p+1:].reshape(-1, order='F'))
+        model.fit(G, y[:, 2*self.m_p+1:-self.m_p].reshape(-1, order='F'))
         A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_
         n = X.shape[1]
@@ -259,8 +259,8 @@ class iSDR():
             self.dual_gap.append(self.dual_gap_)
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
-            if len(active_regions) == A.shape[0] or (len(active_regions) == nbr_orig and i > 0):
-                #self.Acoef_ = A
+            if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
+                self.Acoef_ = A
                 break
             else:
                 G = G[:, idx]

@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.sparse import coo_matrix
 
 def _constructJt(Jt):
     n_s, m_p = Jt.shape
@@ -16,13 +15,28 @@ def construct_J(G, SC, J, m_p):
     row  = []
     col  = []
     data = []
-    data_big = np.zeros(((n_t-m_p+1)*n_m, n_s**2*m_p), dtype=np.float)
-    for t in range(n_t-m_p+1):
-        data_x = _constructJt(J[:, t:t+m_p])
-        data_big[t*n_m:(t+1)*n_m, :] = np.dot(G, data_x)
     SCx = np.zeros((n_s, n_s*m_p))
     for i in range(m_p):
         SCx[:, i*n_s:(i+1)*n_s] = SC
     SCx = SCx.reshape(-1, order='C')
     idx = SCx > 0
-    return data_big[:, idx], idx
+    data_big = np.zeros(((n_t-m_p+1)*n_m, np.sum(idx)), dtype=np.float)
+    for t in range(n_t-m_p+1):
+        data_x = _constructJt(J[:, t:t+m_p])[:, idx]
+        data_big[t*n_m:(t+1)*n_m, :] = np.dot(G, data_x)
+    return data_big, idx
+
+
+def Compute_alpha_max(Ga, M, model_p):
+    n_c, n_s = Ga.shape
+    n_s = n_s//model_p
+    GM = np.zeros((M.shape[1]*model_p, n_s))
+    alpha_max = 0
+    for i in range(n_s):
+        for j in range(model_p):
+            Ax = np.dot(M.T, Ga[:, j*n_s + i])
+            GM[j*M.shape[1]:(j+1)*M.shape[1], i] = Ax
+        x = np.linalg.norm(GM[:, i])
+        if x > alpha_max:
+            alpha_max = x
+    return alpha_max

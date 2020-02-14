@@ -1,6 +1,9 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import random
+import uuid
+import os
 import matplotlib.pyplot as plt
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
@@ -210,7 +213,7 @@ class iSDR():
         connectivity between brain regions/sources)
         
         A: (n_features, n_features*model_p) an initial MVAR model,
-        default None will generate a random MVAR model
+        default None will generate an identity MVAR model at p
         
         method: str has the following values 'lasso' or 'ridge'
                 
@@ -237,10 +240,8 @@ class iSDR():
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
         self.n_sensor, self.n_source = G.shape 
         if A is None:
-            A = np.random.normal(0, 1, (self.n_source, self.n_source*model_p))
-            for i in range(self.n_source):
-                A[i, :] /= np.linalg.norm(A[i, :])
-
+            A = np.zeros((self.n_source, self.n_source*model_p))
+            A[:, -self.n_source:] = np.eye(self.n_source)
         alpha_max = utils.Compute_alpha_max(np.dot(G, A), M, model_p)
         alpha_max *= 0.01;
         self.l21_ratio *= alpha_max;
@@ -336,3 +337,59 @@ class iSDR():
         sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
         yticklabels=ylabel,cmap=cmap)
         plt.title('Effective connectivity p=%s'%self.m_p)
+
+
+def _run(args):
+    l21_reg, la, method, m_p = args
+    G  = np.memmap('G.dat', dtype=np.float, mode='r')
+    M = np.memmap('M.dat', dtype=np.float, mode='r')
+    SC = np.memmap('SC.dat', dtype=np.int, mode='r')
+    cl = ciSDR.linear_model.iSDR(l21_ratio=l21_reg, la=la)
+    cl.solver(G, M, SC, nbr_iter=100, model_p=m_p, A=None, method=method)
+    R = cl.coef_
+    N = len(cl.active_set[-1])
+
+import random
+import os
+import uuid
+
+def createfolder(filename):
+    try:
+        os.mkdir(filename)
+    except OSError:
+        print ("Creation of the directory %s failed" % filename)
+    else:
+        print ("Successfully created the directory %s " % filename)
+    
+def deletefolder(filename):
+    try:
+        os.rmdir(filename)
+    except OSError:
+        print ("Deletion of the directory %s failed" % filename)
+    else:
+        print ("Successfully deleted the directory %s" % filename) 
+
+        
+class iSDRcv():
+    def __init__(self, l21_values=[], la_values = [], max_run = None,
+    seed=2020, parallel=True):
+        all_comb = []
+        for i in product(list1,list2):
+            all_comb.append(i)
+        all_comb = np.array(all_comb)
+        if max_run is None or max_run > len(all_comb):
+            max_run = len(all_comb)
+        np.random.seed(2020)
+        number_list = np.arange(len(all_comb))
+        random.shuffle(number_list)
+        number_list = number_list[:max_run]
+        self.all_comb = all_comb[number_list]
+        self.parallel = parallel
+
+    def run(self, tmp='/tmp'):
+        filename = tmp + '/' + str(uuid.uuid4())
+        if not os.path.exists(filename):
+            createfolder(filename)
+                
+        self.filename = filename
+        deletefolder(filename)

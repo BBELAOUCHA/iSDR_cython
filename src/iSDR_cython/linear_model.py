@@ -371,10 +371,11 @@ def deletefolder(filename):
 
         
 class iSDRcv():
-    def __init__(self, l21_values=[], la_values = [], max_run = None,
-    seed=2020, parallel=True):
+    def __init__(self, model_p=[], l21_values=[], la_values = [], max_run = None,
+        seed=2020, parallel=True, tmp='/tmp'):
+        foldername = tmp + '/' + str(uuid.uuid4())
         all_comb = []
-        for i in product(list1,list2):
+        for i in product(l21_values, la_values, model_p):
             all_comb.append(i)
         all_comb = np.array(all_comb)
         if max_run is None or max_run > len(all_comb):
@@ -385,11 +386,9 @@ class iSDRcv():
         number_list = number_list[:max_run]
         self.all_comb = all_comb[number_list]
         self.parallel = parallel
-
-    def run(self, tmp='/tmp'):
-        filename = tmp + '/' + str(uuid.uuid4())
-        if not os.path.exists(filename):
-            createfolder(filename)
-                
-        self.filename = filename
-        deletefolder(filename)
+        self.foldername = foldername
+    def run(self, G, M, SC):
+        if not os.path.exists(self.foldername):
+            createfolder(self.foldername )
+        
+        deletefolder(self.foldername )

@@ -20,7 +20,8 @@ Where:
      
      * alpha: regularizatiobn parameter that controls the sparsity/minimum norm or A
      
-     * S_c: matrix that select only anatomically connected regions/sources (ones and zeros elements). Ex if i, j are not connected S_c(i, j) = 0 and 1 otherwise
+     * S_c: matrix that select only anatomically connected regions/sources (ones and zeros elements).
+     Ex if i, j are not connected S_c(i, j) = 0 and 1 otherwise
      
 
 iSDR_cython is a Cython package for solving the EEG/MEG inverse problem using structural/functional prior on the causality between brain regions/sources.

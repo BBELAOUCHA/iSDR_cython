@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib.pyplot as plt
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
@@ -29,7 +30,7 @@ from . import utils
 """
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True,
-    max_iter=1000, tol=1e-6, random_state=None, selection='cyclic'):
+    max_iter=7000, tol=1e-6, random_state=None, selection='cyclic'):
         """Linear Model trained with the modified L21 prior as regularizer 
            (aka the Mulitasklasso) and ISDR
            this function implements what is called iSDR (S-step) optimization
@@ -37,14 +38,15 @@ class iSDR():
 
         Parameters
         ----------
-        l21_ratio: scaler, regularization parameter. Has to be > 0
+        l21_ratio: scaler, regularization parameter. Has to be > 0 and
+        < 100
         copy_X : bool, default=True
         If ``True``, X will be copied; else, it may be overwritten.
 
-        max_iter : int, default=1000
+        max_iter : int, default=7000
         The maximum number of iterations
 
-        tol : float, default=1e-4
+        tol : float, default=1e-6
         The tolerance for the optimization: if the updates are
         smaller than ``tol``, the optimization code checks the
         dual gap for optimality and continues until it is smaller
@@ -59,7 +61,7 @@ class iSDR():
         If set to 'random', a random coefficient is updated every iteration
         rather than looping over features sequentially by default. This
         (setting to 'random') often leads to significantly faster convergence
-        especially when tol is higher than 1e-4.
+        especially when tol is higher than 1e-6.
         y : (n_samples, n_targets) which represents the EEG/MEG data
         """
         self.l21_ratio = l21_ratio
@@ -69,8 +71,8 @@ class iSDR():
         self.tol = tol
         self.random_state = random_state
         self.selection = selection
-
-    def _fit(self, X, y, model_p=1):
+        
+    def _fit(self, X, y, model_p):
         """Fit model with coordinate descent.
 
         Parameters
@@ -80,6 +82,7 @@ class iSDR():
         y : (n_samples, n_targets) which represents the EEG/MEG data
         model_p: integer, the order of the assumed multivariate
                  autoregressive model 
+        model_p: int MVAR model order
 
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
@@ -163,28 +166,35 @@ class iSDR():
         G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-1], self.m_p)
         if method.lower() == 'lasso':
             model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
-        elif method.lower('ridge'):
+        elif method.lower() == 'ridge':
             model = Ridge(alpha=self.la, fit_intercept=False, copy_X=True)
         else:
             raise ValueError("Wrong value for MVAR model method estimation. choose [lasso, ridge]")
-
+        #if self.m_p == 1:
+        #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
+        #else:
         model.fit(G, y[:, 2*self.m_p+1:].reshape(-1, order='F'))
         A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_
-        self.Acoef_ = A.reshape((X.shape[1], X.shape[1]*self.m_p), order='C')
+        n = X.shape[1]
+        self.Acoef_ = A.reshape((n, n*self.m_p), order='C')
         return self.Acoef_
 
-    def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None, method='lasso'):
+    def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None,
+        method='lasso'):
         """ ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
             
-        argmin(w, A) ||y - X_A w||^2_2 + l21_ratio * ||w||_21 + ld * ||A||_1/2
+        argmin(w, A)
+               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 + ld * ||A||_1/2
         
         S-step:
-                argmin(w, A=constant) ||y - X_A w||^2_2 + l21_ratio * ||w||_21
+                argmin(w, A=constant)
+               ||y - X_A w||^2_2 + l21_ratio * ||w||_21
                 
         A-step:
-                argmin(w=constant, A) ||y - X_A w||^2_2  + ld * ||A||_1/2
+                argmin(w=constant, A)
+                ||y - X_A w||^2_2  + ld * ||A||_1/2
         
         Parameters
         ----------
@@ -199,8 +209,8 @@ class iSDR():
         model_p: int MVAR model order (spatial and temporal effective
         connectivity between brain regions/sources)
         
-        A: (n_features, n_features*model_p) an initial MVAR model, default None
-        will generate a random MVAR model
+        A: (n_features, n_features*model_p) an initial MVAR model,
+        default None will generate a random MVAR model
         
         method: str has the following values 'lasso' or 'ridge'
                 
@@ -230,6 +240,10 @@ class iSDR():
             A = np.random.normal(0, 1, (self.n_source, self.n_source*model_p))
             for i in range(self.n_source):
                 A[i, :] /= np.linalg.norm(A[i, :])
+
+        alpha_max = utils.Compute_alpha_max(np.dot(G, A), M, model_p)
+        alpha_max *= 0.01;
+        self.l21_ratio *= alpha_max;
         active_regions = np.arange(self.n_source)
         self.active_set = []
         self.dual_gap = []
@@ -246,7 +260,7 @@ class iSDR():
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
             if len(active_regions) == A.shape[0] or (len(active_regions) == nbr_orig and i > 0):
-                self.Acoef_ = A
+                #self.Acoef_ = A
                 break
             else:
                 G = G[:, idx]
@@ -308,7 +322,7 @@ class iSDR():
         'eig': ['eig_%s'%i for i in range(len(self.eigs))]}
         self.eigs = pd.DataFrame(df).set_index('eig')
 
-    def plot_effective(self, fmt='.3f', annot=True, cmap=None):
+    def plot_effective(self, fmt='.3f', annot=True, cmap=None, fig_size = 5):
         """Plotting function
         Plots the effective connectivity 
         """
@@ -318,5 +332,7 @@ class iSDR():
         xlabel = []
         for i in range(self.m_p):
             xlabel.extend(ylabel)
+        plt.figure(figsize=(fig_size*self.m_p, fig_size))
         sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
         yticklabels=ylabel,cmap=cmap)
+        plt.title('Effective connectivity p=%s'%self.m_p)

@@ -25,3 +25,18 @@ def construct_J(G, SC, J, m_p):
         data_x = _constructJt(J[:, t:t+m_p])[:, idx]
         data_big[t*n_m:(t+1)*n_m, :] = np.dot(G, data_x)
     return data_big, idx
+
+
+def Compute_alpha_max(Ga, M, model_p):
+    n_c, n_s = Ga.shape
+    n_s = n_s//model_p
+    GM = np.zeros((M.shape[1]*model_p, n_s))
+    alpha_max = 0
+    for i in range(n_s):
+        for j in range(model_p):
+            Ax = np.dot(M.T, Ga[:, j*n_s + i])
+            GM[j*M.shape[1]:(j+1)*M.shape[1], i] = Ax
+        x = np.linalg.norm(GM[:, i])
+        if x > alpha_max:
+            alpha_max = x
+    return alpha_max

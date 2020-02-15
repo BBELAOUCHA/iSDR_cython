@@ -36,7 +36,7 @@ from . import utils
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True,
     max_iter=10000, tol=1e-6, random_state=None, selection='cyclic',
-    verbose=False):
+    verbose=0):
         """Linear Model trained with the modified L21 prior as regularizer 
            (aka the Mulitasklasso) and ISDR
            this function implements what is called iSDR (S-step) optimization
@@ -78,6 +78,7 @@ class iSDR():
         self.random_state = random_state
         self.selection = selection
         self.verbose = verbose
+
     def _fit(self, X, y, model_p):
         """Fit model with coordinate descent.
 
@@ -122,7 +123,7 @@ class iSDR():
         self.coef_, self.dual_gap_, self.eps_, self.n_iter_ = \
             cd_fast.enet_coordinate_descent_iSDR(
                 self.coef_, self.l21_ratio, X, y.reshape(-1, order='F'), model_p, self.max_iter, self.tol,
-                check_random_state(self.random_state), random)
+                check_random_state(self.random_state), random, self.verbose)
         self.coef_ = self.coef_.reshape((n_features//model_p, n_tasks + model_p - 1), order='F')
         return self
     
@@ -353,7 +354,7 @@ def _run(args):
     cl = iSDR(l21_ratio=float(l21_reg), la=float(la))
     cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, method=method)
     R = cl.coef_
-    rms = 0
+    rms = np.linalg.norm(M)
     n = 0
     l21s = 0
     l1a = 0
@@ -417,9 +418,13 @@ class iSDRcv():
             self.all_comb = np.array(self.all_comb)
             df = {'rms':np.array(self.rms), 'nbr':np.array(self.nbr),
             'S_prior':np.array(self.l21a), 'A_prior':np.array(self.l1a),
-            'ls_reg':self.all_comb[:, 0], 'la_reg':self.all_comb[:, 1],
-            'reg_method':self.all_comb[:, 2],'p':self.all_comb[:, 3]}
+            'ls_reg':self.all_comb[:, 0].astype(float),
+            'la_reg':self.all_comb[:, 1].astype(float),
+            'reg_method':self.all_comb[:, 2],
+            'p':self.all_comb[:, 3].astype(int)
+            }
             df = pd.DataFrame(df)
+            df['Obj'] = df.rms + df.S_prior*df.ls_reg + df.A_prior*df.la_reg
         except Exception as e:
             print(e)
             pass

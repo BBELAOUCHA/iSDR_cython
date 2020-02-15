@@ -100,7 +100,8 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                             floating alpha,
                             np.ndarray[floating, ndim=2, mode='fortran'] X,
                             np.ndarray[floating, ndim=1] y,
-                            int m_p, int max_iter, floating tol, object rng, bint random=0):
+                            int m_p, int max_iter, floating tol,
+                            object rng, bint random=0, int verbose=0):
     """Cython version iSDR
 
 
@@ -161,8 +162,9 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
     cdef floating l21_norm
     
     if alpha == 0:
-        warnings.warn("Coordinate descent with alpha=0 may lead to unexpected"
-            " results and is discouraged.")
+        if verbose:
+            warnings.warn("Coordinate descent with alpha=0 may lead to unexpected"
+                " results and is discouraged.")
     for jj in range(n_s):
         s = 0.0
         for ii in range(m_p):
@@ -276,9 +278,10 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
         else:
                 # for/else, runs if for doesn't end with a `break`
             with gil:
-                warnings.warn("Objective did not converge. You might want to "
-                              "increase the number of iterations. Duality "
-                              "gap: {}, tolerance: {}".format(gap, tol),
-                              ConvergenceWarning)
+                if verbose:
+                    warnings.warn("Objective did not converge. You might want to "
+                                  "increase the number of iterations. Duality "
+                                  "gap: {}, tolerance: {}".format(gap, tol),
+                                  ConvergenceWarning)
     return np.asarray(w), gap, tol, n_iter + 1
    

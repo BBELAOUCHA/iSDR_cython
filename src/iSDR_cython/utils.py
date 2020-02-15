@@ -1,4 +1,6 @@
 import numpy as np
+import os
+import shutil
 
 def _constructJt(Jt):
     n_s, m_p = Jt.shape
@@ -40,3 +42,19 @@ def Compute_alpha_max(Ga, M, model_p):
         if x > alpha_max:
             alpha_max = x
     return alpha_max
+
+def createfolder(filename):
+    try:
+        os.mkdir(filename)
+    except OSError:
+        print ("Creation of the directory %s failed" % filename)
+    else:
+        print ("Successfully created the directory %s " % filename)
+    
+def deletefolder(filename):
+    try:
+        shutil.rmtree(filename, ignore_errors=True)
+    except OSError:
+        print ("Deletion of the directory %s failed" % filename)
+    else:
+        print ("Successfully deleted the directory %s" % filename) 

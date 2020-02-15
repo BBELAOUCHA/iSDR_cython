@@ -2,9 +2,11 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import random
-import uuid
-import os
+from tqdm import tqdm
 import matplotlib.pyplot as plt
+from joblib import dump, load
+import multiprocessing, itertools, uuid, warnings, os
+from itertools import product
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
@@ -33,7 +35,8 @@ from . import utils
 """
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True,
-    max_iter=7000, tol=1e-6, random_state=None, selection='cyclic'):
+    max_iter=10000, tol=1e-6, random_state=None, selection='cyclic',
+    verbose=False):
         """Linear Model trained with the modified L21 prior as regularizer 
            (aka the Mulitasklasso) and ISDR
            this function implements what is called iSDR (S-step) optimization
@@ -46,7 +49,7 @@ class iSDR():
         copy_X : bool, default=True
         If ``True``, X will be copied; else, it may be overwritten.
 
-        max_iter : int, default=7000
+        max_iter : int, default=10000
         The maximum number of iterations
 
         tol : float, default=1e-6
@@ -74,7 +77,7 @@ class iSDR():
         self.tol = tol
         self.random_state = random_state
         self.selection = selection
-        
+        self.verbose = verbose
     def _fit(self, X, y, model_p):
         """Fit model with coordinate descent.
 
@@ -252,7 +255,8 @@ class iSDR():
         nbr_orig = G.shape[1]
         self.m_p = model_p
         for i in range(nbr_iter):
-            print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
+            if self.verbose:
+                print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
             self.S_step(np.dot(G, A), M)
             idx = np.std(self.coef_, axis=1) > 0
             active_regions = active_regions[idx]
@@ -340,55 +344,88 @@ class iSDR():
 
 
 def _run(args):
-    l21_reg, la, method, m_p = args
-    G  = np.memmap('G.dat', dtype=np.float, mode='r')
-    M = np.memmap('M.dat', dtype=np.float, mode='r')
-    SC = np.memmap('SC.dat', dtype=np.int, mode='r')
-    cl = ciSDR.linear_model.iSDR(l21_ratio=l21_reg, la=la)
-    cl.solver(G, M, SC, nbr_iter=100, model_p=m_p, A=None, method=method)
-    R = cl.coef_
-    N = len(cl.active_set[-1])
-
-import random
-import os
-import uuid
-
-def createfolder(filename):
-    try:
-        os.mkdir(filename)
-    except OSError:
-        print ("Creation of the directory %s failed" % filename)
-    else:
-        print ("Successfully created the directory %s " % filename)
+    l21_reg, la, method, m_p, foldername = args
     
-def deletefolder(filename):
-    try:
-        os.rmdir(filename)
-    except OSError:
-        print ("Deletion of the directory %s failed" % filename)
-    else:
-        print ("Successfully deleted the directory %s" % filename) 
+    G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
+    M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
+    SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
+    m_p = int(float(m_p))
+    cl = iSDR(l21_ratio=float(l21_reg), la=float(la))
+    cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, method=method)
+    R = cl.coef_
+    rms = 0
+    n = 0
+    l21s = 0
+    l1a = 0
+    n_t = R.shape[1]
+    if len(R) > 0 and len(cl.Acoef_) > 0:
+        n = R.shape[0]
+        for i in range(m_p, n_t):
+            R[:, i] = 0
+            for j in range(m_p):
+                R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
+        Mx = np.dot(G[:, cl.active_set[-1]], R)
+        rms = np.linalg.norm(M-Mx[:, :M.shape[1]])
+        for i in range(n):
+            l21s += np.linalg.norm(R[i, :])
+        l1a = np.sum(np.abs(cl.Acoef_))
+    return rms, n, l21s, l1a
 
-        
+
 class iSDRcv():
-    def __init__(self, model_p=[], l21_values=[], la_values = [], max_run = None,
-        seed=2020, parallel=True, tmp='/tmp'):
-        foldername = tmp + '/' + str(uuid.uuid4())
+    def __init__(self, model_p=[1], l21_values=[], la_values = [],
+    method=['lasso'], max_run = None, seed=2020,
+    parallel=True, tmp='/tmp'):
+        foldername = tmp + '/tmp_' + str(uuid.uuid4())
         all_comb = []
-        for i in product(l21_values, la_values, model_p):
+
+        for i in product(l21_values, la_values, method, model_p, [foldername]):
             all_comb.append(i)
         all_comb = np.array(all_comb)
         if max_run is None or max_run > len(all_comb):
             max_run = len(all_comb)
-        np.random.seed(2020)
+        np.random.seed(seed)
         number_list = np.arange(len(all_comb))
         random.shuffle(number_list)
         number_list = number_list[:max_run]
         self.all_comb = all_comb[number_list]
         self.parallel = parallel
         self.foldername = foldername
+
     def run(self, G, M, SC):
         if not os.path.exists(self.foldername):
-            createfolder(self.foldername )
-        
-        deletefolder(self.foldername )
+            utils.createfolder(self.foldername)
+        dump(G, self.foldername+'/G.dat')
+        dump(M, self.foldername+'/M.dat')
+        dump(SC, self.foldername+'/SC.dat')
+        #################################
+        self.rms, self.nbr, self.l21a, self.l1a = [], [], [], []
+        df = {}
+        try:
+            if self.parallel:
+                pool = multiprocessing.Pool(multiprocessing.cpu_count() - 2)
+                out = list(tqdm(pool.imap(_run, self.all_comb), total=len(self.all_comb)))
+                pool.terminate()
+                self.rms, self.nbr, self.l21a, self.l1a = zip(*out)
+            else:
+                for i in range(len(self.all_comb)):
+                    x = _run(self.all_comb[i])
+                    self.rms.append(x[0])
+                    self.nbr.append(x[1])
+                    self.l21a.append(x[2])
+                    self.l1a.append(x[3])
+            self.all_comb = np.array(self.all_comb)
+            df = {'rms':np.array(self.rms), 'nbr':np.array(self.nbr),
+            'S_prior':np.array(self.l21a), 'A_prior':np.array(self.l1a),
+            'ls_reg':self.all_comb[:, 0], 'la_reg':self.all_comb[:, 1],
+            'reg_method':self.all_comb[:, 2],'p':self.all_comb[:, 3]}
+            df = pd.DataFrame(df)
+        except Exception as e:
+            print(e)
+            pass
+        ###################################
+        self._delete()
+        self.results = df
+
+    def _delete(self):
+        utils.deletefolder(self.foldername)

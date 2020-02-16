@@ -300,7 +300,8 @@ class iSDR():
         return A
 
     def get_phi(self):
-        """ this function constructs PHI which controls the dynamics
+        """ this function constructs PHI companion matrix which controls
+            the dynamics
             of brain activation
             Phi:  
                   A_0  A_-1 . . . . A_-p
@@ -431,6 +432,9 @@ class iSDRcv():
         ###################################
         self._delete()
         self.results = df
+
+    def save_results(self, folder, filename):
+        self.results.to_csv(folder+ '/' + filename + '.csv')
 
     def _delete(self):
         utils.deletefolder(self.foldername)

@@ -3,8 +3,7 @@
 A solver of EEG/MEG inverse problem using a multivariate auto-regressive model (MVAR) on the source space
 
 
-<img src="https://latex.codecogs.com/gif.latex?U%28J%2C%20A%29%20%3D%20%5Csum_t%20%5Cleft%20%5C%7C%20M_t%20-%20G%5Csum_i%20S_cA_iJ_%7B%20t-i%7D%5Cright%20%5C%7C_2%5E2%20&plus;%20%5Clambda%5Cleft%20%5C%7C%20J%20%5Cright%20%5C%7C_%7B%2012%7D%20&plus;%20%5Calpha%5Cleft%20%5C%7C%20S_cA%20%5Cright%20%5C%7C_%7B1/2%7D" title="U(J, A) = \sum_t \left \|  M_t - G\sum_i S_cA_iJ_{ t-i}\right \|_2^2 + \lambda\left \| J \right \|_{ 12} + \alpha\left \| S_cA \right \|_{1/2}
-"/>
+<img src="https://latex.codecogs.com/gif.latex?U%28J%2C%20A%29%20%3D%20%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7CJ%5C%7C%5Cright_%7B21%7D%20&plus;%20%5Calpha%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B1%7D%20&plus;%20%5Cbeta%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B2%7D" title=" U(J, A) = \left    \|M_v - G_dJ_v\|\right_2^2 + \lambda \left    \|J\|\right_{21}  + \alpha \left    \|S_cA_v\|\right_{1} + \beta \left    \|S_cA_v\|\right_{2}"/>
 
 Where: 
 
@@ -18,7 +17,9 @@ Where:
 
      * lambda: regularization parameter that controls the sparsity of J )0, 100(
      
-     * alpha: regularizatiobn parameter that controls the sparsity/minimum norm or A
+     * alpha, beta: regularizatiobn parameter that controls the sparsity/minimum norm or A
+     
+     * A_v: vectorial form of A
      
      * S_c: matrix that select only anatomically connected regions/sources (ones and zeros elements).
      Ex if i, j are not connected S_c(i, j) = 0 and 1 otherwise

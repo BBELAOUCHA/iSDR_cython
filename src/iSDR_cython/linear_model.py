@@ -10,7 +10,8 @@ from itertools import product
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
-from sklearn.linear_model import Lasso, Ridge
+from sklearn.linear_model import Lasso, Ridge, ElasticNet
+import traceback
 from . import cyISDR as cd_fast
 from . import utils
 """
@@ -34,7 +35,7 @@ from . import utils
 =======================================================================
 """
 class iSDR():
-    def __init__(self, l21_ratio=1.0, la=0.0,  copy_X=True,
+    def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
     max_iter=10000, tol=1e-6, random_state=None, selection='cyclic',
     verbose=0):
         """Linear Model trained with the modified L21 prior as regularizer 
@@ -46,6 +47,10 @@ class iSDR():
         ----------
         l21_ratio: scaler, regularization parameter. Has to be > 0 and
         < 100
+        la: list of two elements  la[0] * la[1] * ||w||_1 + 0.5 * la[0] * (1 - la[1]) * ||w||^2_2
+            la[0] = 0  no prior on A
+            la[1] = 0 no L1 (lasso) prior only L2 (ridge)
+            la[1] = 1 no L2 (ridge) prior only L1 (lasso)
         copy_X : bool, default=True
         If ``True``, X will be copied; else, it may be overwritten.
 
@@ -148,7 +153,7 @@ class iSDR():
         return self.coef_ 
 
 
-    def A_step(self, X, y, SC, method):
+    def A_step(self, X, y, SC, normalize):
         """Fit model of MVAR coefficients with either Lasso or Ridge.
 
         Parameters
@@ -159,7 +164,6 @@ class iSDR():
 
         SC: (n_features, n_features), structural connectivity between 
             brain sources/regions
-        method: str has the following values 'lasso' or 'ridge'
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
         n_targets == number of data samples 
@@ -171,12 +175,7 @@ class iSDR():
         """
         nbr_samples = y.shape[1]
         G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-self.m_p-1], self.m_p)
-        if method.lower() == 'lasso':
-            model = Lasso(alpha=self.la, fit_intercept=False, copy_X=True)
-        elif method.lower() == 'ridge':
-            model = Ridge(alpha=self.la, fit_intercept=False, copy_X=True)
-        else:
-            raise ValueError("Wrong value for MVAR model method estimation. choose [lasso, ridge]")
+        model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1], fit_intercept=False, copy_X=True)
         #if self.m_p == 1:
         #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
         #else:
@@ -184,16 +183,21 @@ class iSDR():
         A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_
         n = X.shape[1]
-        self.Acoef_ = A.reshape((n, n*self.m_p), order='C')
-        return self.Acoef_
+        self.Acoef_ = np.array(A.reshape((n, n*self.m_p), order='C'))
+        self.weights = np.ones(self.Acoef_.shape[0])
+        if normalize:
+            for i in range(self.Acoef_.shape[0]):
+                self.weights[i] = np.max(np.abs(self.Acoef_[i, :]))
+                if self.weights[i]>0:
+                    self.Acoef_[i, :] = self.Acoef_[i, :]/self.weights[i]
+        return self.Acoef_, self.weights
 
-    def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None,
-        method='lasso'):
+    def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None, normalize = False):
         """ ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
             
         argmin(w, A)
-               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 + ld * ||A||_1/2
+               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 + la[0] * la[1] * ||A||_1 + 0.5 * la[0] * (1-la[1]) * ||A||_2
         
         S-step:
                 argmin(w, A=constant)
@@ -201,7 +205,7 @@ class iSDR():
                 
         A-step:
                 argmin(w=constant, A)
-                ||y - X_A w||^2_2  + ld * ||A||_1/2
+                ||y - X_A w||^2_2  + la[0] * la[1] * ||A||_1 + 0.5 * la[0] * (1-la[1]) * ||A||_2
         
         Parameters
         ----------
@@ -218,19 +222,17 @@ class iSDR():
         
         A: (n_features, n_features*model_p) an initial MVAR model,
         default None will generate an identity MVAR model at p
-        
-        method: str has the following values 'lasso' or 'ridge'
-                
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
         n_targets == number of data samples 
-        
+
+        normalize: bool: normalize A row way (divide by max value) before next S step
         Attributes
         ----------
         self.Acoef_: (n_active, n_active*model_p) estimated MVAR model
         self.coef_: (n_active, n_targets + model_p - 1) estimated brain 
                     activity
-
+        self.coef_: (n_active) weights that was used to normalize self.Acoef_
         self.active_set: list number of active regions/sources at each
                          iteration
         self.dual_gap: list containing the dual gap values of MxNE solver
@@ -276,7 +278,7 @@ class iSDR():
             if np.sum(idx) == 0:
                 break
             
-            A = self.A_step(G, M, SC, method)
+            A, weights = self.A_step(G, M, SC, normalize=normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
 
@@ -346,19 +348,19 @@ class iSDR():
 
 
 def _run(args):
-    l21_reg, la, method, m_p, foldername = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername = args
     
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
     SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
     m_p = int(float(m_p))
-    cl = iSDR(l21_ratio=float(l21_reg), la=float(la))
-    cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, method=method)
+    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)])
+    cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, normalize=int(float(normalize)))
     R = cl.coef_
-    rms = np.linalg.norm(M)
+    rms = np.linalg.norm(M)**2
     n = 0
     l21s = 0
-    l1a = 0
+    l1a_l1norm,  l1a_l2norm= 0, 0
     n_t = R.shape[1]
     if len(R) > 0 and len(cl.Acoef_) > 0:
         n = R.shape[0]
@@ -367,21 +369,21 @@ def _run(args):
             for j in range(m_p):
                 R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
         Mx = np.dot(G[:, cl.active_set[-1]], R)
-        rms = np.linalg.norm(M-Mx[:, :M.shape[1]])
+        rms = np.linalg.norm(M-Mx[:, :M.shape[1]])**2
         for i in range(n):
             l21s += np.linalg.norm(R[i, :])
-        l1a = np.sum(np.abs(cl.Acoef_))
-    return rms, n, l21s, l1a
+        l1a_l1norm = np.sum(np.abs(cl.Acoef_))
+        l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
+    return rms/(2*n_t), n, l21s, l1a_l1norm, l1a_l2norm
 
 
 class iSDRcv():
-    def __init__(self, model_p=[1], l21_values=[], la_values = [],
-    method=['lasso'], max_run = None, seed=2020,
-    parallel=True, tmp='/tmp'):
+    def __init__(self, model_p=[1], l21_values=[], la_values = [], la_ratio_values=[1], normalize =[1],
+                 max_run = None, seed=2020, parallel=True, tmp='/tmp'):
         foldername = tmp + '/tmp_' + str(uuid.uuid4())
         all_comb = []
 
-        for i in product(l21_values, la_values, method, model_p, [foldername]):
+        for i in product(l21_values, la_values, la_ratio_values, model_p, normalize, [foldername]):
             all_comb.append(i)
         all_comb = np.array(all_comb)
         if max_run is None or max_run > len(all_comb):
@@ -401,33 +403,39 @@ class iSDRcv():
         dump(M, self.foldername+'/M.dat')
         dump(SC, self.foldername+'/SC.dat')
         #################################
-        self.rms, self.nbr, self.l21a, self.l1a = [], [], [], []
+        self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm = [], [], [], [], []
         df = {}
         try:
             if self.parallel:
                 pool = multiprocessing.Pool(multiprocessing.cpu_count() - 2)
                 out = list(tqdm(pool.imap(_run, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
-                self.rms, self.nbr, self.l21a, self.l1a = zip(*out)
+                self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm = zip(*out)
             else:
                 for i in range(len(self.all_comb)):
                     x = _run(self.all_comb[i])
                     self.rms.append(x[0])
                     self.nbr.append(x[1])
                     self.l21a.append(x[2])
-                    self.l1a.append(x[3])
-            self.all_comb = np.array(self.all_comb)
-            df = {'rms':np.array(self.rms), 'nbr':np.array(self.nbr),
-            'S_prior':np.array(self.l21a), 'A_prior':np.array(self.l1a),
-            'ls_reg':self.all_comb[:, 0].astype(float),
-            'la_reg':self.all_comb[:, 1].astype(float),
-            'reg_method':self.all_comb[:, 2],
-            'p':self.all_comb[:, 3].astype(int)
-            }
-            df = pd.DataFrame(df)
-            df['Obj'] = df.rms + df.S_prior*df.ls_reg + df.A_prior*df.la_reg
+                    self.l1a_l1norm.append(x[3])
+                    self.l1a_l2norm.append(x[4])
+            if len(self.rms):
+                self.all_comb = np.array(self.all_comb)
+                df = {'rms':np.array(self.rms), 'nbr':np.array(self.nbr),
+                'S_prior':np.array(self.l21a), 'A_prior_l1':np.array(self.l1a_l1norm),
+                'A_prior_l2':np.array(self.l1a_l2norm),
+                'ls_reg':self.all_comb[:, 0].astype(float),
+                'la_reg_a':self.all_comb[:, 1].astype(float),
+                'la_reg_r': self.all_comb[:, 2].astype(float),
+                'p':self.all_comb[:, 3].astype(int),
+                'normalize':self.all_comb[:, 4].astype(int),
+                }
+                df = pd.DataFrame(df)
+                df['Obj'] = df.rms + df.S_prior*df.ls_reg + df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
+                            df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)
         except Exception as e:
             print(e)
+            print(traceback.print_exc())
             pass
         ###################################
         self._delete()

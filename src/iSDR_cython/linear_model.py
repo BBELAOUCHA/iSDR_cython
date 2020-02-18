@@ -192,7 +192,7 @@ class iSDR():
                     self.Acoef_[i, :] = self.Acoef_[i, :]/self.weights[i]
         return self.Acoef_, self.weights
 
-    def solver(self, G, M, SC, nbr_iter=1, model_p=1, A=None, normalize = False):
+    def solver(self, Gtmp, Mtmp, SCtmp, nbr_iter=1, model_p=1, A=None, normalize = False, S_tol=1e-3):
         """ ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
             
@@ -227,6 +227,8 @@ class iSDR():
         n_targets == number of data samples 
 
         normalize: bool: normalize A row way (divide by max value) before next S step
+
+        S_tol: tolerance value to stop iterating, small change in the S-step
         Attributes
         ----------
         self.Acoef_: (n_active, n_active*model_p) estimated MVAR model
@@ -242,6 +244,7 @@ class iSDR():
         
         n_active == number of active sources/regions
         """
+        G, M, SC = Gtmp.copy(), Mtmp.copy(), SCtmp.copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
         self.n_sensor, self.n_source = G.shape 
@@ -257,6 +260,8 @@ class iSDR():
         self.mxne_iter = []
         nbr_orig = G.shape[1]
         self.m_p = model_p
+        S_tol *= np.linalg.norm(np.dot(np.linalg.pinv(G), M))/M.shape[1]
+        previous_j = np.zeros((G.shape[1], M.shape[1] + model_p - 1))
         for i in range(nbr_iter):
             if self.verbose:
                 print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
@@ -267,8 +272,15 @@ class iSDR():
             self.dual_gap.append(self.dual_gap_)
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
+            t = np.linalg.norm(previous_j - self.coef_)/M.shape[1]
+            if t < S_tol:
+                if self.verbose:
+                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i, S_tol, t))
+                break
             if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
                 self.Acoef_ = A
+                if self.verbose:
+                    print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i, len(active_regions) , A.shape[0]))
                 break
             else:
                 G = G[:, idx]
@@ -277,7 +289,7 @@ class iSDR():
                 self.coef_ = self.coef_[idx, :]
             if np.sum(idx) == 0:
                 break
-            
+            previous_j = self.coef_.copy()
             A, weights = self.A_step(G, M, SC, normalize=normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
@@ -356,30 +368,33 @@ def _run(args):
     m_p = int(float(m_p))
     cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)])
     cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, normalize=int(float(normalize)))
-    R = cl.coef_
+    R = cl.coef_.copy()
     rms = np.linalg.norm(M)**2
     n = 0
     l21s = 0
     l1a_l1norm,  l1a_l2norm= 0, 0
-    n_t = R.shape[1]
-    if len(R) > 0 and len(cl.Acoef_) > 0:
+    n_c, n_t = R.shape
+    if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         n = R.shape[0]
-        for i in range(m_p, n_t):
-            R[:, i] = 0
-            for j in range(m_p):
-                R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
-        Mx = np.dot(G[:, cl.active_set[-1]], R)
-        rms = np.linalg.norm(M-Mx[:, :M.shape[1]])**2
+        #for i in range(m_p, n_t):
+        #    R[:, i] = 0
+        #    for j in range(m_p):
+        #        R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
+        #R = cl.coef_.copy()
+        Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
+        x = min(Mx.shape[1], M.shape[1])
+        rms = np.linalg.norm(M[:, :x]-Mx[:, :x])**2
         for i in range(n):
             l21s += np.linalg.norm(R[i, :])
         l1a_l1norm = np.sum(np.abs(cl.Acoef_))
-        l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
-    return rms/(2*n_t), n, l21s, l1a_l1norm, l1a_l2norm
+        l1a_l2norm = np.linalg.norm(cl.Acoef_)
+
+    return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio
 
 
 class iSDRcv():
     def __init__(self, model_p=[1], l21_values=[], la_values = [], la_ratio_values=[1], normalize =[1],
-                 max_run = None, seed=2020, parallel=True, tmp='/tmp'):
+                 max_run = None, seed=2020, parallel=True, tmp='/tmp', verbose=False):
         foldername = tmp + '/tmp_' + str(uuid.uuid4())
         all_comb = []
 
@@ -403,14 +418,14 @@ class iSDRcv():
         dump(M, self.foldername+'/M.dat')
         dump(SC, self.foldername+'/SC.dat')
         #################################
-        self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm = [], [], [], [], []
+        self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = [], [], [], [], [], []
         df = {}
         try:
             if self.parallel:
                 pool = multiprocessing.Pool(multiprocessing.cpu_count() - 2)
                 out = list(tqdm(pool.imap(_run, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
-                self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm = zip(*out)
+                self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = zip(*out)
             else:
                 for i in range(len(self.all_comb)):
                     x = _run(self.all_comb[i])
@@ -419,6 +434,7 @@ class iSDRcv():
                     self.l21a.append(x[2])
                     self.l1a_l1norm.append(x[3])
                     self.l1a_l2norm.append(x[4])
+                    self.l21_ratio.append(x[5])
             if len(self.rms):
                 self.all_comb = np.array(self.all_comb)
                 df = {'rms':np.array(self.rms), 'nbr':np.array(self.nbr),
@@ -429,9 +445,10 @@ class iSDRcv():
                 'la_reg_r': self.all_comb[:, 2].astype(float),
                 'p':self.all_comb[:, 3].astype(int),
                 'normalize':self.all_comb[:, 4].astype(int),
+                'l21_real':np.array(self.l21_ratio)
                 }
                 df = pd.DataFrame(df)
-                df['Obj'] = df.rms + df.S_prior*df.ls_reg + df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
+                df['Obj'] = df.rms + df.S_prior*df.l21_real*df.nbr*df.nbr*df.p + df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
                             df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)
         except Exception as e:
             print(e)
@@ -446,3 +463,35 @@ class iSDRcv():
 
     def _delete(self):
         utils.deletefolder(self.foldername)
+
+
+
+class eiSDR_cv():
+    """
+    This function run grid search cross validation and return the optimal values
+    :return:
+    row of the dataframe correspending to the minimum eISDR functional values
+    """
+    def __init__(self, l21_values=[1e-3], la_values=[1e-3], la_ratio_values=[0,1],
+                 normalize=[0], model_p=[1], verbose=False):
+        self.l21_values = l21_values
+        self.la_values = la_values
+        self.la_ratio_values = la_ratio_values
+        self.normalize = normalize
+        self.model_p = model_p
+        self.verbose = verbose
+
+    def get_opt(self, G, M, SC):
+        clf = iSDRcv(l21_values=self.l21_values,
+                    la_values=self.la_values,
+                    la_ratio_values=self.la_ratio_values,
+                    normalize=self.normalize,
+                    model_p=self.model_p,
+                    verbose=self.verbose)
+        clf.run(G, M, SC)
+        df = clf.results
+        self.results = df.copy()
+        self.results = self.results[self.results.S_prior > 0]
+        if self.results.shape[0] > 0:
+            return self.results[self.results.Obj == self.results.Obj.min()]
+        return []

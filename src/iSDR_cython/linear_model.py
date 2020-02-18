@@ -175,7 +175,8 @@ class iSDR():
         """
         nbr_samples = y.shape[1]
         G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-self.m_p-1], self.m_p)
-        model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1], fit_intercept=False, copy_X=True)
+        model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
+        fit_intercept=False, copy_X=True, random_state=self.random_state)
         #if self.m_p == 1:
         #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
         #else:
@@ -192,7 +193,8 @@ class iSDR():
                     self.Acoef_[i, :] = self.Acoef_[i, :]/self.weights[i]
         return self.Acoef_, self.weights
 
-    def solver(self, Gtmp, Mtmp, SCtmp, nbr_iter=1, model_p=1, A=None, normalize = False, S_tol=1e-3):
+    def solver(self, Gtmp, Mtmp, SCtmp, nbr_iter=1, model_p=1, A=None,
+    normalize = False, S_tol=1e-3):
         """ ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
             
@@ -251,6 +253,7 @@ class iSDR():
         if A is None:
             A = np.zeros((self.n_source, self.n_source*model_p))
             A[:, -self.n_source:] = np.eye(self.n_source)
+        self.Acoef_ = A
         alpha_max = utils.Compute_alpha_max(np.dot(G, A), M, model_p)
         alpha_max *= 0.01;
         self.l21_ratio *= alpha_max;
@@ -273,10 +276,7 @@ class iSDR():
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
             t = np.linalg.norm(previous_j - self.coef_)/M.shape[1]
-            if t < S_tol:
-                if self.verbose:
-                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i, S_tol, t))
-                break
+
             if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
                 self.Acoef_ = A
                 if self.verbose:
@@ -288,11 +288,18 @@ class iSDR():
                 SC = SC[:, idx]
                 self.coef_ = self.coef_[idx, :]
             if np.sum(idx) == 0:
+                self.Acoef_ = []
+                self.coef_ = []
                 break
+             
             previous_j = self.coef_.copy()
             A, weights = self.A_step(G, M, SC, normalize=normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
+            if t < S_tol:
+                if self.verbose:
+                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i, S_tol, t))
+                break
 
     def _reorder_A(self):
         """ this function reorder the MVAR model matrix so that it can
@@ -376,18 +383,18 @@ def _run(args):
     n_c, n_t = R.shape
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         n = R.shape[0]
-        #for i in range(m_p, n_t):
-        #    R[:, i] = 0
-        #    for j in range(m_p):
-        #        R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
-        #R = cl.coef_.copy()
+        for i in range(m_p, n_t):
+            R[:, i] = 0
+            for j in range(m_p):
+                R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
+        R = cl.coef_.copy()
         Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x]-Mx[:, :x])**2
         for i in range(n):
             l21s += np.linalg.norm(R[i, :])
         l1a_l1norm = np.sum(np.abs(cl.Acoef_))
-        l1a_l2norm = np.linalg.norm(cl.Acoef_)
+        l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
 
     return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio
 
@@ -448,7 +455,8 @@ class iSDRcv():
                 'l21_real':np.array(self.l21_ratio)
                 }
                 df = pd.DataFrame(df)
-                df['Obj'] = df.rms + df.S_prior*df.l21_real*df.nbr*df.nbr*df.p + df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
+                df['Obj'] = df.rms + df.S_prior*df.l21_real +\
+                df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
                             df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)
         except Exception as e:
             print(e)
@@ -473,23 +481,26 @@ class eiSDR_cv():
     row of the dataframe correspending to the minimum eISDR functional values
     """
     def __init__(self, l21_values=[1e-3], la_values=[1e-3], la_ratio_values=[0,1],
-                 normalize=[0], model_p=[1], verbose=False):
+                 normalize=[0], model_p=[1], verbose=False, max_run=None):
         self.l21_values = l21_values
         self.la_values = la_values
         self.la_ratio_values = la_ratio_values
         self.normalize = normalize
         self.model_p = model_p
         self.verbose = verbose
-
+        self.max_run = max_run
     def get_opt(self, G, M, SC):
-        clf = iSDRcv(l21_values=self.l21_values,
+        cv = iSDRcv(l21_values=self.l21_values,
                     la_values=self.la_values,
                     la_ratio_values=self.la_ratio_values,
                     normalize=self.normalize,
                     model_p=self.model_p,
-                    verbose=self.verbose)
-        clf.run(G, M, SC)
-        df = clf.results
+                    verbose=self.verbose,
+                    max_run=self.max_run)
+        if self.verbose:
+            print('Total number of combination %s'%len(cv.all_comb))
+        cv.run(G, M, SC)
+        df = cv.results
         self.results = df.copy()
         self.results = self.results[self.results.S_prior > 0]
         if self.results.shape[0] > 0:

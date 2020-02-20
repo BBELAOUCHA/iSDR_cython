@@ -1,6 +1,6 @@
-# iSDR_cython: Cython implementation of iSDR_p (iterative source and dynamics reconstruction)
+# iSDR_cython: Cython implementation of eISDR_p (elasticnet Iterative Source and Dynamics Reconstruction)
 
-A solver of EEG/MEG inverse problem using a multivariate auto-regressive model (MVAR) on the source space
+A solver of EEG/MEG inverse problem using a multivariate auto-regressive model (MVAR) on the source space. In this package, you can find two solvers eISDR and iSDR approaches. 
 
 
 <img src="https://latex.codecogs.com/gif.latex?U%28J%2C%20A%29%20%3D%20%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7CJ%5C%7C%5Cright_%7B21%7D%20&plus;%20%5Calpha%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B1%7D%20&plus;%20%5Cbeta%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B2%7D" title=" U(J, A) = \left    \|M_v - G_dJ_v\|\right_2^2 + \lambda \left    \|J\|\right_{21}  + \alpha \left    \|S_cA_v\|\right_{1} + \beta \left    \|S_cA_v\|\right_{2}"/>

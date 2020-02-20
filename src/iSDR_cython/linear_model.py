@@ -37,7 +37,7 @@ from . import utils
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
     max_iter=10000, tol=1e-6, random_state=None, selection='cyclic',
-    verbose=0):
+    verbose=0, old_version=False):
         """Linear Model trained with the modified L21 prior as regularizer 
            (aka the Mulitasklasso) and ISDR
            this function implements what is called iSDR (S-step) optimization
@@ -54,26 +54,49 @@ class iSDR():
         copy_X : bool, default=True
         If ``True``, X will be copied; else, it may be overwritten.
 
-        max_iter : int, default=10000
-        The maximum number of iterations
+        max_iter : int, default=10000 The maximum number of iterations
 
         tol : float, default=1e-6
-        The tolerance for the optimization: if the updates are
-        smaller than ``tol``, the optimization code checks the
-        dual gap for optimality and continues until it is smaller
-        than ``tol``.
+            The tolerance for the optimization: if the updates are
+            smaller than ``tol``, the optimization code checks the
+            dual gap for optimality and continues until it is smaller
+            than ``tol``.
         random_state : int, RandomState instance, default=None
-        The seed of the pseudo random number generator that selects a random
-        feature to update. Used when ``selection`` == 'random'.
-        Pass an int for reproducible output across multiple function calls.
-        See :term:`Glossary <random_state>`.
+            The seed of the pseudo random number generator that selects a random
+            feature to update. Used when ``selection`` == 'random'.
+            Pass an int for reproducible output across multiple function calls.
+            See :term:`Glossary <random_state>`.
 
         selection : {'cyclic', 'random'}, default='cyclic'
-        If set to 'random', a random coefficient is updated every iteration
-        rather than looping over features sequentially by default. This
-        (setting to 'random') often leads to significantly faster convergence
-        especially when tol is higher than 1e-6.
-        y : (n_samples, n_targets) which represents the EEG/MEG data
+            If set to 'random', a random coefficient is updated every iteration
+            rather than looping over features sequentially by default.
+
+        verbose: int/bool flag used to give more details about iSDR procedure
+
+        old_version: bool flag to use either eISDR(false) or iSDR (true) which can be found in the following papers:
+            (1) Brahim Belaoucha, Théodore Papadopoulo. Large brain effective network from EEG/MEG data and dMR
+                information. PRNI 2017 – 7th International Workshop on Pattern Recognition in NeuroImaging,
+                Jun 2017, Toronto, Canada.
+
+            (2) Brahim Belaoucha, Mouloud Kachouane, Théodore Papadopoulo. Multivariate Autoregressive Model
+                Constrained by Anatomical Connectivity to Reconstruct Focal Sources. 2016 38th Annual International
+                Conference of the IEEE Engineering in Medicine and Biology Society (EMBC), Aug 2016, Orlando,
+                United States. 2016.
+
+        Attributes
+        ----------
+        self.Acoef_: (n_active, n_active*model_p) estimated MVAR model
+        self.coef_: (n_active, n_targets + model_p - 1) estimated brain
+                    activity
+        self.coef_: (n_active) weights that was used to normalize self.Acoef_
+        self.active_set: list number of active regions/sources at each
+                         iteration
+        self.dual_gap: list containing the dual gap values of MxNE solver
+                       at each iteration
+        self.mxne_iter: list containing the number of iteration until
+                        convergence for MxNE solver
+
+        n_active == number of active sources/regions
         """
         self.l21_ratio = l21_ratio
         self.la = la
@@ -83,6 +106,9 @@ class iSDR():
         self.random_state = random_state
         self.selection = selection
         self.verbose = verbose
+        self.old = old_version
+        if self.old:
+            self.la = [0.0, 0.0]
 
     def _fit(self, X, y, model_p):
         """Fit model with coordinate descent.
@@ -174,13 +200,20 @@ class iSDR():
         n_active == number of active sources/regions
         """
         nbr_samples = y.shape[1]
-        G, idx = utils.construct_J(X, SC, self.coef_[:, 2*self.m_p:-self.m_p-1], self.m_p)
+        z = self.coef_[:, 2*self.m_p:-self.m_p-1]
+        G, idx = utils.construct_J(X, SC, z, self.m_p, self.old)
         model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
         fit_intercept=False, copy_X=True, random_state=self.random_state)
         #if self.m_p == 1:
         #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
         #else:
-        model.fit(G, y[:, 2*self.m_p+1:-self.m_p].reshape(-1, order='F'))
+        if self.old:
+            yt = self.coef_[:, 3*self.m_p:-self.m_p].reshape(-1, order='F')
+        else:
+            yt = y[:, 3*self.m_p:3*self.m_p + z.shape[1] - self.m_p + 1]
+            yt = yt.reshape(-1, order='F')
+
+        model.fit(G, yt)
         A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_
         n = X.shape[1]
@@ -246,7 +279,7 @@ class iSDR():
         
         n_active == number of active sources/regions
         """
-        G, M, SC = Gtmp.copy(), Mtmp.copy(), SCtmp.copy()
+        G, M, SC = Gtmp.copy(), Mtmp.copy(), SCtmp.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
         self.n_sensor, self.n_source = G.shape 
@@ -367,22 +400,23 @@ class iSDR():
 
 
 def _run(args):
-    l21_reg, la, la_ratio, m_p, normalize, foldername = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, old_version = args
     
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
     SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
     m_p = int(float(m_p))
-    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)])
+    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=bool(old_version))
     cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, normalize=int(float(normalize)))
     R = cl.coef_.copy()
+    n_c, n_t = M.shape
     rms = np.linalg.norm(M)**2
     n = 0
     l21s = 0
     l1a_l1norm,  l1a_l2norm= 0, 0
-    n_c, n_t = R.shape
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         n = R.shape[0]
+        n_c, n_t = R.shape
         for i in range(m_p, n_t):
             R[:, i] = 0
             for j in range(m_p):
@@ -401,11 +435,11 @@ def _run(args):
 
 class iSDRcv():
     def __init__(self, model_p=[1], l21_values=[], la_values = [], la_ratio_values=[1], normalize =[1],
-                 max_run = None, seed=2020, parallel=True, tmp='/tmp', verbose=False):
+                 max_run = None, seed=2020, parallel=True, tmp='/tmp', verbose=False, old_version=False):
         foldername = tmp + '/tmp_' + str(uuid.uuid4())
         all_comb = []
 
-        for i in product(l21_values, la_values, la_ratio_values, model_p, normalize, [foldername]):
+        for i in product(l21_values, la_values, la_ratio_values, model_p, normalize, [foldername], [old_version]):
             all_comb.append(i)
         all_comb = np.array(all_comb)
         if max_run is None or max_run > len(all_comb):
@@ -481,7 +515,7 @@ class eiSDR_cv():
     row of the dataframe correspending to the minimum eISDR functional values
     """
     def __init__(self, l21_values=[1e-3], la_values=[1e-3], la_ratio_values=[0,1],
-                 normalize=[0], model_p=[1], verbose=False, max_run=None):
+                 normalize=[0], model_p=[1], verbose=False, max_run=None, old_version=False):
         self.l21_values = l21_values
         self.la_values = la_values
         self.la_ratio_values = la_ratio_values
@@ -489,6 +523,7 @@ class eiSDR_cv():
         self.model_p = model_p
         self.verbose = verbose
         self.max_run = max_run
+        self.old_version = old_version
     def get_opt(self, G, M, SC):
         cv = iSDRcv(l21_values=self.l21_values,
                     la_values=self.la_values,
@@ -496,7 +531,8 @@ class eiSDR_cv():
                     normalize=self.normalize,
                     model_p=self.model_p,
                     verbose=self.verbose,
-                    max_run=self.max_run)
+                    max_run=self.max_run,
+                    old_version=self.old_version)
         if self.verbose:
             print('Total number of combination %s'%len(cv.all_comb))
         cv.run(G, M, SC)

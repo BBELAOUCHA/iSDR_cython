@@ -2,8 +2,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import random
-from tqdm import tqdm
+
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from joblib import dump, load
 import multiprocessing, itertools, uuid, warnings, os
 from itertools import product

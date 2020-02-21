@@ -406,7 +406,7 @@ def _run(args):
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
     SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
     m_p = int(float(m_p))
-    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=bool(old_version))
+    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(old_version))
     cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, normalize=int(float(normalize)))
     R = cl.coef_.copy()
     n_c, n_t = M.shape
@@ -516,14 +516,15 @@ class eiSDR_cv():
     """
     def __init__(self, l21_values=[1e-3], la_values=[1e-3], la_ratio_values=[0,1],
                  normalize=[0], model_p=[1], verbose=False, max_run=None, old_version=False):
-        self.l21_values = l21_values
-        self.la_values = la_values
-        self.la_ratio_values = la_ratio_values
+        self.l21_values = np.unique(l21_values)
+        self.la_values = np.unique(la_values)
+        self.la_ratio_values = np.unique(la_ratio_values)
         self.normalize = normalize
         self.model_p = model_p
         self.verbose = verbose
         self.max_run = max_run
         self.old_version = old_version
+
     def get_opt(self, G, M, SC):
         cv = iSDRcv(l21_values=self.l21_values,
                     la_values=self.la_values,

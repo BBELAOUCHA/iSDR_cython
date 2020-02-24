@@ -2,7 +2,9 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import random
+import time
 
+from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from tqdm import tqdm
 from joblib import dump, load
@@ -122,6 +124,7 @@ class iSDR():
         self.selection = selection
         self.verbose = verbose
         self.old = old_version
+        self.time = None
         if self.old:
             self.la = [0.0, 0.0]
 
@@ -246,7 +249,7 @@ class iSDR():
                     self.Acoef_[i, :] = self.Acoef_[i, :]/self.weights[i]
         return self.Acoef_, self.weights
 
-    def solver(self, Gtmp, Mtmp, SCtmp, nbr_iter=1, model_p=1, A=None,
+    def solver(self, Gtmp, Mtmp, SCtmp, nbr_iter=50, model_p=1, A=None,
     normalize = False, S_tol=1e-3):
         """ ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
@@ -303,6 +306,7 @@ class iSDR():
         
         n_active == number of active sources/regions
         """
+        self.time = - time.time()
         G, M, SC = Gtmp.copy(), Mtmp.copy(), SCtmp.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
@@ -338,6 +342,7 @@ class iSDR():
                 self.Acoef_ = A
                 if self.verbose:
                     print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i, len(active_regions) , A.shape[0]))
+                self.time += time.time()
                 break
             else:
                 G = G[:, idx]
@@ -347,6 +352,7 @@ class iSDR():
             if np.sum(idx) == 0:
                 self.Acoef_ = []
                 self.coef_ = []
+                self.time += time.time()
                 break
 
             previous_j = self.coef_.copy()
@@ -356,6 +362,7 @@ class iSDR():
             if t < S_tol:
                 if self.verbose:
                     print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i, S_tol, t))
+                self.time += time.time()
                 break
 
     def _reorder_A(self):
@@ -415,7 +422,7 @@ class iSDR():
         'eig': ['eig_%s'%i for i in range(len(self.eigs))]}
         self.eigs = pd.DataFrame(df).set_index('eig')
 
-    def plot_effective(self, fmt='.3f', annot=True, cmap=None, fig_size = 5):
+    def plot_effective(self, fmt='.3f', annot=True, cmap=None, fig_size = 5, mask_flag=True):
         """Plotting function
         Plots the effective connectivity 
         """
@@ -430,10 +437,21 @@ class iSDR():
             xlabel = []
             for i in range(self.m_p):
                 xlabel.extend(ylabel)
+            mask = np.zeros_like(A)
+            if mask_flag:
+                mask[A==0] = True
+
             plt.figure(figsize=(fig_size*self.m_p, fig_size))
-            sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
-            yticklabels=ylabel,cmap=cmap)
+            g = sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
+            yticklabels=ylabel,cmap=cmap,mask=mask)
             plt.title('Effective connectivity p=%s'%self.m_p)
+            n, m = A.shape
+            idx = [i*n for i in range(m//n)]
+            for i, k in enumerate(idx):
+                g.add_patch(Rectangle((k, 0), n - 0.01, n - 0.01, fill=False, lw=3))
+                plt.text(i * n + n // 2, n + 0.5, r'$A_{}$'.format(m // n - i), fontsize=14, weight="bold")
+
+                
         else:
             if self.verbose:
                 print('No active source are deteceted')
@@ -447,7 +465,7 @@ def _run(args):
     SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
     m_p = int(float(m_p))
     cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(old_version))
-    cl.solver(G, M, SC, nbr_iter=100, model_p=int(m_p), A=None, normalize=int(float(normalize)))
+    cl.solver(G, M, SC, model_p=int(m_p), A=None, normalize=int(float(normalize)))
     R = cl.coef_.copy()
     n_c, n_t = M.shape
     rms = np.linalg.norm(M)**2
@@ -492,7 +510,8 @@ class iSDRcv():
 
         if not hasattr(normalize, "__len__"):
             normalize = [normalize]
-            
+
+        old_version = 1 if old_version else 0
         for i in product(np.unique(l21_values), np.unique(la_values),
         np.unique(la_ratio_values), np.unique(model_p),
         np.unique(normalize), [foldername], [old_version]):
@@ -507,8 +526,9 @@ class iSDRcv():
         self.all_comb = all_comb[number_list]
         self.parallel = parallel
         self.foldername = foldername
-
+        self.time = None
     def run(self, G, M, SC):
+        self.time = -time.time()
         if not os.path.exists(self.foldername):
             utils.createfolder(self.foldername)
         dump(G, self.foldername+'/G.dat')
@@ -549,6 +569,7 @@ class iSDRcv():
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
                 df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
                             df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)
+                self.time += time.time()
         except Exception as e:
             print(e)
             print(traceback.print_exc())
@@ -592,7 +613,7 @@ class eiSDR_cv():
 
         if not hasattr(model_p, "__len__"):
             model_p = [model_p]
-            
+
         self.l21_values = np.unique(l21_values)
         self.la_values = np.unique(la_values)
         self.la_ratio_values = np.unique(la_ratio_values)
@@ -600,10 +621,11 @@ class eiSDR_cv():
         self.model_p = model_p
         self.verbose = verbose
         self.max_run = max_run
-        self.old_version = old_version
+        self.old_version = 1 if old_version else 0
         self.parallel = parallel
-
+        self.time = None
     def get_opt(self, G, M, SC):
+        self.time = -time.time()
         cv = iSDRcv(l21_values=self.l21_values,
                     la_values=self.la_values,
                     la_ratio_values=self.la_ratio_values,
@@ -617,6 +639,7 @@ class eiSDR_cv():
             print('Total number of combination %s'%len(cv.all_comb))
 
         cv.run(G, M, SC)
+        self.time += time.time()
         if hasattr(cv, 'results'):
             self.results = cv.results.copy()
             self.re = self.results[self.results.S_prior > 0]

@@ -164,7 +164,7 @@ class iSDR():
         if self.normalize_Sstep:
             X_scale = np.ones((self.n_source, 1))
             for i in range(self.n_source):
-                v = np.var(X[:, i::self.n_source])
+                v = np.std(X[:, i::self.n_source])
                 if v > 0:
                     X_scale[i] = v
                     X[:, i::self.n_source] /= v
@@ -236,7 +236,7 @@ class iSDR():
         n_active == number of active sources/regions
         """
         nbr_samples = y.shape[1]
-        z = self.coef_[:, 2*self.m_p:-self.m_p-1]
+        z = self.coef_[:, 2*self.m_p:-self.m_p - 1]
         G, idx = utils.construct_J(X, SC, z, self.m_p, self.old)
         if self.la[0] != 0:
             model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
@@ -250,7 +250,7 @@ class iSDR():
         if self.old:
             yt = self.coef_[:, 3*self.m_p:-self.m_p].reshape(-1, order='F')
         else:
-            yt = y[:, 3*self.m_p:3*self.m_p + z.shape[1] - self.m_p + 1]
+            yt = y[:, 2*self.m_p:2*self.m_p + z.shape[1] - self.m_p + 1]
             yt = yt.reshape(-1, order='F')
 
         model.fit(G, yt)
@@ -357,6 +357,7 @@ class iSDR():
             t = np.linalg.norm(previous_j - self.coef_)/M.shape[1]
 
             if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
+                #A, weights = self.A_step(G, M, SC, normalize=normalize)
                 self.Acoef_ = A
                 if self.verbose:
                     print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i, len(active_regions) , A.shape[0]))
@@ -436,7 +437,7 @@ class iSDR():
         for i in range(ny - nx):
             self.Phi[nx+i, i] = 1
         self.eigs = np.linalg.eigvals(self.Phi)
-        df = {'real':self.eigs.real, 'imag':np.imag(self.eigs),
+        df = {'real':self.eigs.real, 'imag':np.imag(self.eigs), 'abs':np.abs(self.eigs),
         'eig': ['eig_%s'%i for i in range(len(self.eigs))]}
         self.eigs = pd.DataFrame(df).set_index('eig')
 

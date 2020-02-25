@@ -194,10 +194,13 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                     for j in range(i + 1):
                         tmp[i] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (i - j) * block, 1,
                               &R[0] + j * n_c, 1))
+                              
+                        tmp[n_t_s - i - 1] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1,
+                              &R[0] + (n_t - 1 - i + j) * n_c, 1))
                     # Last block
-                    jj = n_t_s + i - m_p + 1
-                    for j in range(n_t_s - jj):
-                        tmp[jj] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1, &R[0] + (n_t - m_p + 1 + j) * n_c, 1))
+                    #jj = n_t_s  + i - m_p + 1
+                    #for j in range(n_t_s - jj):
+                    #    tmp[jj] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1, &R[0] + (n_t - m_p + 1 + j + i) * n_c, 1))
                 # Middle block
                 for i in range(m_p - 1, n_t_s - m_p + 1):
                     for j in range(m_p):

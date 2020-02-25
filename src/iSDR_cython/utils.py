@@ -43,10 +43,8 @@ def Compute_alpha_max(Ga, M, model_p):
         for j in range(model_p):
             Ax = np.dot(M.T, Ga[:, j*n_s + i])
             GM[j*M.shape[1]:(j+1)*M.shape[1], i] = Ax
-        x = np.linalg.norm(GM[:, i])
-        if x > alpha_max:
-            alpha_max = x
-    return alpha_max
+    alpha_max = np.sqrt(np.sum(np.power(GM, 2, GM), axis=0))
+    return np.max(alpha_max)
 
 def createfolder(filename):
     try:

@@ -244,13 +244,11 @@ class iSDR():
             random_state=self.random_state, max_iter=1500)
         else:
             model = LinearRegression(fit_intercept=False, normalize=self.normalize_Astep, copy_X=True)
-        #if self.m_p == 1:
-        #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
-        #else:
+
         if self.old:
             yt = self.coef_[:, 3*self.m_p:-self.m_p].reshape(-1, order='F')
         else:
-            yt = y[:, 2*self.m_p:2*self.m_p + z.shape[1] - self.m_p + 1]
+            yt = y[:, 2*self.m_p:-self.m_p-1]
             yt = yt.reshape(-1, order='F')
 
         model.fit(G, yt)
@@ -358,7 +356,7 @@ class iSDR():
 
             if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
                 #A, weights = self.A_step(G, M, SC, normalize=normalize)
-                self.Acoef_ = A
+                #self.Acoef_ = A
                 if self.verbose:
                     print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i, len(active_regions) , A.shape[0]))
                 self.time += time.time()

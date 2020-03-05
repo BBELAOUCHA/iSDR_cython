@@ -237,7 +237,7 @@ class iSDR():
         """
         nbr_samples = y.shape[1]
         z = self.coef_[:, 2*self.m_p:-self.m_p - 1]
-        G, idx = utils.construct_J(X, SC, z, self.m_p, self.old)
+        G, idx = utils.construct_J(X, SC, z, self.m_p, old=1)
         if self.la[0] != 0:
             model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
             fit_intercept=False, copy_X=True,normalize=self.normalize_Astep,
@@ -250,7 +250,8 @@ class iSDR():
         else:
             yt = y[:, 2*self.m_p:-self.m_p-1]
             yt = yt.reshape(-1, order='F')
-
+        yt = self.coef_[:, 3 * self.m_p:-self.m_p].reshape(-1, order='F')
+        #yt = self.coef_[:, 3 * self.m_p:-self.m_p].reshape(-1, order='F')
         model.fit(G, yt)
         A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_

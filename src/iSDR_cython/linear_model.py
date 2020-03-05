@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import random
+from scipy.sparse import linalg
 import time
 
 from matplotlib.patches import Rectangle
@@ -237,7 +238,7 @@ class iSDR():
         """
         nbr_samples = y.shape[1]
         z = self.coef_[:, 2*self.m_p:-self.m_p - 1]
-        G, idx = utils.construct_J(X, SC, z, self.m_p, old=1)
+        G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
         if self.la[0] != 0:
             model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
             fit_intercept=False, copy_X=True,normalize=self.normalize_Astep,
@@ -250,8 +251,7 @@ class iSDR():
         else:
             yt = y[:, 2*self.m_p:-self.m_p-1]
             yt = yt.reshape(-1, order='F')
-        yt = self.coef_[:, 3 * self.m_p:-self.m_p].reshape(-1, order='F')
-        #yt = self.coef_[:, 3 * self.m_p:-self.m_p].reshape(-1, order='F')
+
         model.fit(G, yt)
         A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
         A[idx] = model.coef_
@@ -323,6 +323,8 @@ class iSDR():
         n_active == number of active sources/regions
         """
         self.time = - time.time()
+        self.Morig = Mtmp.copy()
+        self.Gorig = Gtmp.copy()
         G, M, SC = Gtmp.copy(), Mtmp.copy(), SCtmp.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
@@ -472,7 +474,18 @@ class iSDR():
 
         else:
             if self.verbose:
-                print('No active source are deteceted')
+                print('No active source is detected')
+
+
+    def bias_correction(self):
+        self.Jbias_corr = []
+        active = self.active_set[-1]
+        if len(active):
+            Gtmp = self.Gorig[:, active]
+            Gbig = utils.create_bigG(Gtmp, self.Acoef_, self.Morig)
+            Z = linalg.lsmr(Gbig, self.Morig.reshape(-1, order='F'), atol=1e-12, btol=1e-12)
+            self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
+
 
 
 def _run(args):

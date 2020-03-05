@@ -1,6 +1,7 @@
 import numpy as np
 import os
 import shutil
+from scipy.sparse import coo_matrix
 
 def _constructJt(Jt):
     n_s, m_p = Jt.shape
@@ -61,3 +62,26 @@ def deletefolder(filename):
         print ("Deletion of the directory %s failed" % filename)
     else:
         print ("Successfully deleted the directory %s" % filename) 
+
+
+
+
+
+def create_bigG(G, A, M):
+    GA = np.dot(G, A)
+    n_c , n_t  = M.shape
+    _ , n_s = G.shape
+    m_p = A.shape[1]//n_s
+    row  = []
+    col  = []
+    data = []
+    for i in range(n_t):
+        for j in range(n_c):
+            row.append([j+n_c*i]*n_s*m_p)
+            col.append([n_s*i+k for k in range(n_s*m_p)])
+            data.append(GA[j, :])
+    data = np.array(data).reshape(-1)
+    row = np.array(row).reshape(-1)
+    col = np.array(col).reshape(-1)
+
+    return coo_matrix((data, (row, col)), shape=(n_t*n_c, n_s*(n_t + m_p - 1)))

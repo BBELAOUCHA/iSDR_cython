@@ -194,10 +194,13 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                     for j in range(i + 1):
                         tmp[i] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (i - j) * block, 1,
                               &R[0] + j * n_c, 1))
+                              
+                        tmp[n_t_s - i - 1] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1,
+                              &R[0] + (n_t - 1 - i + j) * n_c, 1))
                     # Last block
-                    jj = n_t_s + i - m_p + 1
-                    for j in range(n_t_s - jj):
-                        tmp[jj] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1, &R[0] + (n_t - m_p + 1 + j) * n_c, 1))
+                    #jj = n_t_s  + i - m_p + 1
+                    #for j in range(n_t_s - jj):
+                    #    tmp[jj] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1, &R[0] + (n_t - m_p + 1 + j + i) * n_c, 1))
                 # Middle block
                 for i in range(m_p - 1, n_t_s - m_p + 1):
                     for j in range(m_p):
@@ -209,17 +212,21 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                 _scal(n_t_s, fmax(1.0 - (mu_X[ii] * alpha) / s, 0.0), &tmp[0], 1)
                 _copy(n_t_s, &tmp[0], 1, W_ptr + ii, n_s)
                 d_w_ii = diff_abs_max(n_t_s, &tmp[0], wii_ptr)
-    
+                W_ii_abs_max = abs_max(n_t_s, &tmp[0])
                 if d_w_ii != 0.0:
-                    for jj in range(n_t): # n_t = T-p
-                        for j in range(n_c):
-                            for i in range(m_p):
-                                R[j + jj * n_c] -= X[j, ii + i * n_s] * (tmp[jj + i] - w_ii[jj + i])                            
+                    #for jj in range(n_t): # n_t = T-p
+                    #    for j in range(n_c):
+                    #        for i in range(m_p):
+                    #            R[j + jj * n_c] -= X[j, ii + i * n_s] * (tmp[jj + i] - w_ii[jj + i])                            
+                    for jj in range(n_t_s):
+                        tmp[jj] -= w_ii[jj]
 
-    
+                    for jj in range(n_t):
+                        _gemv(ColMajor, NoTrans, n_c, m_p, -1, X_ptr + ii*n_c, n_c*n_s, &tmp[0] + jj, 1, 1, &R[0] + jj*n_c, 1)
+
                 if d_w_ii > d_w_max:
                     d_w_max = d_w_ii
-                W_ii_abs_max = abs_max(n_t_s, &tmp[0])
+
                 if W_ii_abs_max > w_max:
                     w_max = W_ii_abs_max
             if w_max == 0.0 or d_w_max / w_max < d_w_tol or n_iter == max_iter - 1:

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import random
+from scipy.sparse import linalg
 import time
 
 from matplotlib.patches import Rectangle
@@ -13,7 +14,7 @@ from itertools import product
 from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
 from sklearn.utils import check_array, check_X_y
 from sklearn.utils.validation import check_random_state
-from sklearn.linear_model import Lasso, Ridge, ElasticNet
+from sklearn.linear_model import Lasso, Ridge, ElasticNet, LinearRegression
 import traceback
 from . import cyISDR as cd_fast
 from . import utils
@@ -40,7 +41,8 @@ from . import utils
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
     max_iter=10000, tol=1e-6, random_state=None, selection='cyclic',
-    verbose=0, old_version=False):
+    verbose=0, old_version=False, normalize_Sstep=False,
+                 normalize_Astep=False):
         """
         Linear Model trained with the modified L21 prior as regularizer 
            (aka the Mulitasklasso) and ISDR
@@ -125,6 +127,8 @@ class iSDR():
         self.verbose = verbose
         self.old = old_version
         self.time = None
+        self.normalize_Sstep = normalize_Sstep
+        self.normalize_Astep = normalize_Astep
         if self.old:
             self.la = [0.0, 0.0]
 
@@ -157,7 +161,15 @@ class iSDR():
             raise ValueError("More than %s is needed" % model_p)
 
         n_samples, n_features = X.shape
-        _, n_tasks = y.shape
+        n_tasks = y.shape[1]
+        if self.normalize_Sstep:
+            X_scale = np.ones((self.n_source, 1))
+            for i in range(self.n_source):
+                v = np.std(X[:, i::self.n_source])
+                if v > 0:
+                    X_scale[i] = v
+                    X[:, i::self.n_source] /= v
+
         if n_samples != y.shape[0]:
             raise ValueError("X and y have inconsistent dimensions (%d != %d)"
                              % (n_samples, y.shape[0]))
@@ -178,6 +190,9 @@ class iSDR():
                 self.verbose)
         n, m = n_features//model_p, n_tasks + model_p - 1
         self.coef_ = self.coef_.reshape((n, m), order='F')
+        if self.normalize_Sstep:
+            self.coef_ = self.coef_/ X_scale
+            self.xscale = X_scale
         return self
     
     def S_step(self, X, y):
@@ -222,18 +237,19 @@ class iSDR():
         n_active == number of active sources/regions
         """
         nbr_samples = y.shape[1]
-        z = self.coef_[:, 2*self.m_p:-self.m_p-1]
-        G, idx = utils.construct_J(X, SC, z, self.m_p, self.old)
-        model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
-        fit_intercept=False, copy_X=True,
-        random_state=self.random_state)
-        #if self.m_p == 1:
-        #    model.fit(G, y[:, 2*self.m_p:-1].reshape(-1, order='F'))
-        #else:
+        z = self.coef_[:, 2*self.m_p:-self.m_p - 1]
+        G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
+        if self.la[0] != 0:
+            model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
+            fit_intercept=False, copy_X=True,normalize=self.normalize_Astep,
+            random_state=self.random_state, max_iter=1500)
+        else:
+            model = LinearRegression(fit_intercept=False, normalize=self.normalize_Astep, copy_X=True)
+
         if self.old:
             yt = self.coef_[:, 3*self.m_p:-self.m_p].reshape(-1, order='F')
         else:
-            yt = y[:, 3*self.m_p:3*self.m_p + z.shape[1] - self.m_p + 1]
+            yt = y[:, 2*self.m_p+1:-self.m_p]
             yt = yt.reshape(-1, order='F')
 
         model.fit(G, yt)
@@ -307,6 +323,8 @@ class iSDR():
         n_active == number of active sources/regions
         """
         self.time = - time.time()
+        self.Morig = Mtmp.copy()
+        self.Gorig = Gtmp.copy()
         G, M, SC = Gtmp.copy(), Mtmp.copy(), SCtmp.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
@@ -327,9 +345,8 @@ class iSDR():
         S_tol *= np.linalg.norm(np.dot(np.linalg.pinv(G), M))/M.shape[1]
         previous_j = np.zeros((G.shape[1], M.shape[1] + model_p - 1))
         for i in range(nbr_iter):
-            if self.verbose:
-                print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
-            self.S_step(np.dot(G, A), M)
+            GAtmp = np.dot(G, A)
+            self.S_step(GAtmp, M)
             idx = np.std(self.coef_, axis=1) > 0
             active_regions = active_regions[idx]
             self.active_set.append(active_regions)
@@ -337,11 +354,13 @@ class iSDR():
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
             t = np.linalg.norm(previous_j - self.coef_)/M.shape[1]
-
+            if self.verbose:
+                print("Iteration %s: nbr of active sources %s"%(i+1, len(active_regions)))
             if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
-                self.Acoef_ = A
+                #A, weights = self.A_step(G, M, SC, normalize=normalize)
+                #self.Acoef_ = A
                 if self.verbose:
-                    print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i, len(active_regions) , A.shape[0]))
+                    print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i+1, len(active_regions) , A.shape[0]))
                 self.time += time.time()
                 break
             else:
@@ -361,7 +380,7 @@ class iSDR():
             self.n_source = np.sum(idx)
             if t < S_tol:
                 if self.verbose:
-                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i, S_tol, t))
+                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i+1, S_tol, t))
                 self.time += time.time()
                 break
 
@@ -418,7 +437,7 @@ class iSDR():
         for i in range(ny - nx):
             self.Phi[nx+i, i] = 1
         self.eigs = np.linalg.eigvals(self.Phi)
-        df = {'real':self.eigs.real, 'imag':np.imag(self.eigs),
+        df = {'real':self.eigs.real, 'imag':np.imag(self.eigs), 'abs':np.abs(self.eigs),
         'eig': ['eig_%s'%i for i in range(len(self.eigs))]}
         self.eigs = pd.DataFrame(df).set_index('eig')
 
@@ -451,20 +470,32 @@ class iSDR():
                 g.add_patch(Rectangle((k, 0), n - 0.01, n - 0.01, fill=False, lw=3))
                 plt.text(i * n + n // 2, n + 0.5, r'$A_{}$'.format(m // n - i), fontsize=14, weight="bold")
 
-                
+
         else:
             if self.verbose:
-                print('No active source are deteceted')
+                print('No active source is detected')
+
+
+    def bias_correction(self):
+        self.Jbias_corr = []
+        active = self.active_set[-1]
+        if len(active):
+            Gtmp = self.Gorig[:, active]
+            Gbig = utils.create_bigG(Gtmp, self.Acoef_, self.Morig)
+            Z = linalg.lsmr(Gbig, self.Morig.reshape(-1, order='F'), atol=1e-12, btol=1e-12)
+            self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
+
 
 
 def _run(args):
-    l21_reg, la, la_ratio, m_p, normalize, foldername, old_version = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, old_version, normalize_Astep, normalize_Sstep = args
     
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
     SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
     m_p = int(float(m_p))
-    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(old_version))
+    cl = iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(old_version),
+              normalize_Astep=int(normalize_Astep), normalize_Sstep=int(normalize_Sstep))
     cl.solver(G, M, SC, model_p=int(m_p), A=None, normalize=int(float(normalize)))
     R = cl.coef_.copy()
     n_c, n_t = M.shape
@@ -475,11 +506,11 @@ def _run(args):
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         n = R.shape[0]
         n_c, n_t = R.shape
-        for i in range(2*m_p, n_t):
-            R[:, i] = 0
-            for j in range(m_p):
-                R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
-        #R = cl.coef_.copy()
+        #for i in range(2*m_p, n_t):
+        #    R[:, i] = 0
+        #    for j in range(m_p):
+        #        R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
+        R = cl.coef_.copy()
         Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x]-Mx[:, :x])**2
@@ -493,7 +524,8 @@ def _run(args):
 
 class iSDRcv():
     def __init__(self, model_p=[1], l21_values=[], la_values = [], la_ratio_values=[1], normalize =[1],
-                 max_run = None, seed=2020, parallel=True, tmp='/tmp', verbose=False, old_version=False):
+                 max_run = None, seed=2020, parallel=True, tmp='/tmp', verbose=False, old_version=False,
+                 normalize_Astep=[0], normalize_Sstep=[0]):
         foldername = tmp + '/tmp_' + str(uuid.uuid4())
         all_comb = []
         if not hasattr(model_p, "__len__"):
@@ -511,10 +543,16 @@ class iSDRcv():
         if not hasattr(normalize, "__len__"):
             normalize = [normalize]
 
+        if not hasattr(normalize_Astep, "__len__"):
+            normalize_Astep = [normalize_Astep]
+
+        if not hasattr(normalize_Sstep, "__len__"):
+            normalize_Sstep = [normalize_Sstep]
+
         old_version = 1 if old_version else 0
         for i in product(np.unique(l21_values), np.unique(la_values),
         np.unique(la_ratio_values), np.unique(model_p),
-        np.unique(normalize), [foldername], [old_version]):
+        np.unique(normalize), [foldername], [old_version], normalize_Astep, normalize_Sstep):
             all_comb.append(i)
         all_comb = np.array(all_comb)
         if max_run is None or max_run > len(all_comb):
@@ -527,6 +565,7 @@ class iSDRcv():
         self.parallel = parallel
         self.foldername = foldername
         self.time = None
+
     def run(self, G, M, SC):
         self.time = -time.time()
         if not os.path.exists(self.foldername):
@@ -563,7 +602,9 @@ class iSDRcv():
                 'la_reg_r': self.all_comb[:, 2].astype(float),
                 'p':self.all_comb[:, 3].astype(int),
                 'normalize':self.all_comb[:, 4].astype(int),
-                'l21_real':np.array(self.l21_ratio)
+                'l21_real':np.array(self.l21_ratio),
+                'normalize_Astep':self.all_comb[:, -2].astype(int),
+                'normalize_Sstep':self.all_comb[:, -1].astype(int)
                 }
                 df = pd.DataFrame(df)
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
@@ -596,8 +637,8 @@ class eiSDR_cv():
     row of the dataframe correspending to the minimum eISDR functional values
     """
     def __init__(self, l21_values=[1e-3], la_values=[1e-3],
-    la_ratio_values=[0,1], normalize=[0], model_p=[1], verbose=False,
-    max_run=None, old_version=False, parallel=True):
+    la_ratio_values=[1], normalize=[0], model_p=[1], verbose=False,
+    max_run=None, old_version=False, parallel=True, normalize_Astep = [0], normalize_Sstep = [0]):
 
         if not hasattr(l21_values, "__len__"):
             l21_values = [l21_values]
@@ -624,6 +665,8 @@ class eiSDR_cv():
         self.old_version = 1 if old_version else 0
         self.parallel = parallel
         self.time = None
+        self.normalize_Astep = normalize_Astep
+        self.normalize_Sstep = normalize_Sstep
     def get_opt(self, G, M, SC):
         self.time = -time.time()
         cv = iSDRcv(l21_values=self.l21_values,
@@ -634,17 +677,22 @@ class eiSDR_cv():
                     verbose=self.verbose,
                     max_run=self.max_run,
                     old_version=self.old_version,
-                    parallel=self.parallel)
+                    parallel=self.parallel,
+                    normalize_Astep = self.normalize_Astep,
+                    normalize_Sstep = self.normalize_Sstep
+                    )
         if self.verbose:
             print('Total number of combination %s'%len(cv.all_comb))
 
         cv.run(G, M, SC)
         self.time += time.time()
+        self.opt = {}
         if hasattr(cv, 'results'):
             self.results = cv.results.copy()
             self.re = self.results[self.results.S_prior > 0]
             if self.re.shape[0] > 0:
-                return self.re[self.re.Obj == self.re.Obj.min()]
+                self.opt = self.re[self.re.Obj == self.re.Obj.min()]
+                return self.opt
             else:
                 if self.verbose:
                     print('No parameter combination resulted in active set')
@@ -655,6 +703,6 @@ class eiSDR_cv():
         
     def save(self, filename):
         if hasattr(self, 'results'):
-            self.results.to_csv(filename + '')
+            self.results.to_csv(filename)
         else:
             print('can not find results, run get_opt before saving the results')

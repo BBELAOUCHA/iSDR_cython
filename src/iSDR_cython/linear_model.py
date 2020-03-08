@@ -249,7 +249,7 @@ class iSDR():
         if self.old:
             yt = self.coef_[:, 3*self.m_p:-self.m_p].reshape(-1, order='F')
         else:
-            yt = y[:, 2*self.m_p:-self.m_p-1]
+            yt = y[:, 2*self.m_p+1:-self.m_p]
             yt = yt.reshape(-1, order='F')
 
         model.fit(G, yt)
@@ -345,8 +345,6 @@ class iSDR():
         S_tol *= np.linalg.norm(np.dot(np.linalg.pinv(G), M))/M.shape[1]
         previous_j = np.zeros((G.shape[1], M.shape[1] + model_p - 1))
         for i in range(nbr_iter):
-            if self.verbose:
-                print("Iteration %s: nbr of active sources %s"%(i, len(active_regions)))
             GAtmp = np.dot(G, A)
             self.S_step(GAtmp, M)
             idx = np.std(self.coef_, axis=1) > 0
@@ -356,12 +354,13 @@ class iSDR():
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
             t = np.linalg.norm(previous_j - self.coef_)/M.shape[1]
-
+            if self.verbose:
+                print("Iteration %s: nbr of active sources %s"%(i+1, len(active_regions)))
             if (len(active_regions) == A.shape[0] and i>0) or (len(active_regions) == nbr_orig and i > 0):
                 #A, weights = self.A_step(G, M, SC, normalize=normalize)
                 #self.Acoef_ = A
                 if self.verbose:
-                    print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i, len(active_regions) , A.shape[0]))
+                    print('Stopped at iteration %s : Change in active set tol %.4f > %.4f  '%(i+1, len(active_regions) , A.shape[0]))
                 self.time += time.time()
                 break
             else:
@@ -381,7 +380,7 @@ class iSDR():
             self.n_source = np.sum(idx)
             if t < S_tol:
                 if self.verbose:
-                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i, S_tol, t))
+                    print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i+1, S_tol, t))
                 self.time += time.time()
                 break
 
@@ -507,11 +506,11 @@ def _run(args):
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         n = R.shape[0]
         n_c, n_t = R.shape
-        for i in range(2*m_p, n_t):
-            R[:, i] = 0
-            for j in range(m_p):
-                R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
-        #R = cl.coef_.copy()
+        #for i in range(2*m_p, n_t):
+        #    R[:, i] = 0
+        #    for j in range(m_p):
+        #        R[:, i] += np.dot(cl.Acoef_[:, j*n:(j+1)*n], R[:, i - m_p + j])
+        R = cl.coef_.copy()
         Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x]-Mx[:, :x])**2
@@ -638,8 +637,8 @@ class eiSDR_cv():
     row of the dataframe correspending to the minimum eISDR functional values
     """
     def __init__(self, l21_values=[1e-3], la_values=[1e-3],
-    la_ratio_values=[0,1], normalize=[0], model_p=[1], verbose=False,
-    max_run=None, old_version=False, parallel=True, normalize_Astep = [0, 1], normalize_Sstep = [0, 1]):
+    la_ratio_values=[1], normalize=[0], model_p=[1], verbose=False,
+    max_run=None, old_version=False, parallel=True, normalize_Astep = [0], normalize_Sstep = [0]):
 
         if not hasattr(l21_values, "__len__"):
             l21_values = [l21_values]
@@ -687,11 +686,13 @@ class eiSDR_cv():
 
         cv.run(G, M, SC)
         self.time += time.time()
+        self.opt = {}
         if hasattr(cv, 'results'):
             self.results = cv.results.copy()
             self.re = self.results[self.results.S_prior > 0]
             if self.re.shape[0] > 0:
-                return self.re[self.re.Obj == self.re.Obj.min()]
+                self.opt = self.re[self.re.Obj == self.re.Obj.min()]
+                return self.opt
             else:
                 if self.verbose:
                     print('No parameter combination resulted in active set')
@@ -702,6 +703,6 @@ class eiSDR_cv():
         
     def save(self, filename):
         if hasattr(self, 'results'):
-            self.results.to_csv(filename + '')
+            self.results.to_csv(filename)
         else:
             print('can not find results, run get_opt before saving the results')

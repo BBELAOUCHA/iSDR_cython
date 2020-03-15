@@ -2,6 +2,7 @@
 import numpy as np
 import os
 import shutil
+import random
 from scipy.sparse import coo_matrix
 from joblib import dump, load
 from . import linear_model
@@ -207,3 +208,89 @@ def _run(args):
         l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
 
     return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio
+
+
+def _runCV(args):
+    """
+    The core function used to run the cross validation
+    Parameters:
+    ----------
+    l21_reg:    regularization of l21 norm (Sstep) , 0<values<100
+    la:         regularization of l1 and l2 norm (Astep)
+    la_ratio:   regularization of l1 and l2 norm (Astep)
+    m_p:        MAR model order
+    normalize:  Normalize A_i's before Sstep or not
+    foldername: Folder where to find:
+                    M.dat: EEG/MEG data
+                    G.dat: gain matix
+                    SC.dat:    structral connectivity
+                    A.dat: Initial MAR model, if not None is passed 
+    o_v:        flag to used old version iSDR or not
+    n_Astep:    normalize transfer function in A step
+    n_Sstep:    normalize transfer function in S step
+    
+    Return:
+    ---------- 
+    rms: reconstruction error of MEG/EEG measurements
+    n: number of active regions/sources
+    l21s: l21 norm of the reconstructed sources
+    l1a_l1norm: the l1norm of reconstructed MAR model
+    l1a_l2norm: the l2norm of the reconstructed MAR model
+    cl.l21_ratio: the l21 norm used in the regularization (not in %)
+    """
+    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, cv, seed, test_data, run_ix  = args
+    test_data = np.array(test_data)
+    G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
+    M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
+    SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)
+    if os.path.isfile(foldername+'/A.dat'):
+        A = np.array(load(foldername+'/A.dat', mmap_mode='r'))
+    else:
+        A = None
+    m_p = int(float(m_p))
+    n_c, n_t = M.shape
+    np.random.seed(int(seed))
+    number_list = np.arange(n_c)
+    random.shuffle(number_list)
+    rms = []
+    nbr = 0
+    l21s = 0
+    l1a_l1norm = 0
+    l1a_l2norm = 0
+    l21_ratio = 0
+    train_data = np.array([j for j in range(n_c) if not j in test_data])
+    cl = linear_model.iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(o_v),
+                  normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    gtmp = G[train_data, :]
+    mtmp = M[train_data, :]
+    cl.solver(gtmp, mtmp, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
+    R = cl.Scoef_.copy()
+    l21_ratio = cl.l21_ratio
+    if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+        n = R.shape[0]
+        nbr = n
+        Mx = M[test_data, :].copy()
+        ns = len(cl.active_set[-1])
+        for k in range(Mx.shape[1]):
+            Mx[:, k] = 0
+            for m in range(m_p):
+                gtmp = G[test_data, :]
+                gtmp = gtmp[:, np.array(cl.active_set[-1])]
+                x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
+                Mx[:, k] += np.dot(x, R[:, k+m])
+        x = min(Mx.shape[1], M.shape[1])
+        rms = np.linalg.norm(M[test_data, :] - Mx)**2
+        l = 0
+        for i in range(n):
+            l += np.linalg.norm(R[i, :])
+        l21s = l
+        l1a_l1norm = np.sum(np.abs(cl.Acoef_))
+        l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
+    else:
+        rms = np.linalg.norm(M[test_data, :])**2
+        nbr= 0
+        l21s = 0
+        l1a_l1norm = 0
+        l1a_l2norm = 0
+    rms = rms/(2*n_t*len(test_data))
+    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, run_ix

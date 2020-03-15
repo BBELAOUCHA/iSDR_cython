@@ -541,7 +541,7 @@ class iSDRcv():
                  la_ratio_values=[1], normalize =[0],
                  max_run = None, seed=2020, parallel=True, tmp='/tmp',
                  verbose=False,old_version=False,
-                 normalize_Astep=[0],normalize_Sstep=[0]):
+                 normalize_Astep=[0],normalize_Sstep=[0], cv=None):
         """
         This function is used to run cross-validation with grid run of 
         all combination of parameters and hyper-parameters and return 
@@ -596,9 +596,20 @@ class iSDRcv():
             normalize_Sstep = [normalize_Sstep]
 
         old_version = 1 if old_version else 0
-        for i in product(np.unique(l21_values), np.unique(la_values),
-        np.unique(la_ratio_values), np.unique(model_p),
-        np.unique(normalize), [foldername], [old_version], normalize_Astep, normalize_Sstep):
+        l21_values = np.unique(l21_values)
+        la_values = np.unique(la_values)
+        la_ratio_values = np.unique(la_ratio_values)
+        model_p = np.unique(model_p)
+        normalize = np.unique(normalize)
+        if cv is None:
+            prod = product(l21_values, la_values,la_ratio_values, model_p,
+            normalize, [foldername], [old_version], normalize_Astep,
+            normalize_Sstep)
+        else:
+            prod = product(l21_values, la_values,la_ratio_values, model_p,
+            normalize, [foldername], [old_version], normalize_Astep,
+            normalize_Sstep, [int(cv)], [seed])
+        for i in prod:
             all_comb.append(i)
         all_comb = np.array(all_comb)
         if max_run is None or max_run > len(all_comb):
@@ -611,7 +622,8 @@ class iSDRcv():
         self.parallel = parallel
         self.foldername = foldername
         self.time = None
-
+        self.cv = cv
+        self.seed = seed
     def run(self, G, M, SC, A=None):
         self.time = -time.time()
         if not os.path.exists(self.foldername):
@@ -624,24 +636,47 @@ class iSDRcv():
         #################################
         self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = [], [], [], [], [], []
         df = {}
+        test_data = []
+        if self.cv is None:
+            par_func = utils._run
+        else:
+            par_func = utils._runCV
+            np.random.seed(int(self.seed))
+            number_list = np.arange(M.shape[0])
+            random.shuffle(number_list)
+            combinations = []
+            for ii in range(self.all_comb.shape[0]):
+                n_block = M.shape[0]//int(self.cv)
+                for i in range(int(self.cv)):
+                    c = []
+                    c.extend(self.all_comb[ii, :])
+                    c.append(np.sort(number_list[i*n_block:n_block*(i+1)]))
+                    c.extend([ii])
+                    combinations.append(c)
+            self.all_comb = combinations
         try:
             if self.parallel:
                 pool = multiprocessing.Pool(multiprocessing.cpu_count() - 2)
-                out = list(tqdm(pool.imap(utils._run, self.all_comb), total=len(self.all_comb)))
+                out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
-                self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = zip(*out)
+                self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, runid = zip(*out)
             else:
+                runid = []
                 for i in tqdm(range(len(self.all_comb))):
-                    x = utils._run(self.all_comb[i])
+                    x = par_func(self.all_comb[i])
                     self.rms.append(x[0])
                     self.nbr.append(x[1])
                     self.l21a.append(x[2])
                     self.l1a_l1norm.append(x[3])
                     self.l1a_l2norm.append(x[4])
                     self.l21_ratio.append(x[5])
-
+                    if not self.cv is None:
+                        runid.append(x[6])
+                    
             if len(self.rms):
                 self.all_comb = np.array(self.all_comb)
+                if not len(runid):
+                    runid = np.arange(self.all_comb.shape[0])
                 df = {
                     'rms':np.array(self.rms),
                     'nbr':np.array(self.nbr),
@@ -654,10 +689,12 @@ class iSDRcv():
                     'p':self.all_comb[:, 3].astype(int),
                     'normalize':self.all_comb[:, 4].astype(int),
                     'l21_real':np.array(self.l21_ratio),
-                    'normalize_Astep':self.all_comb[:, -2].astype(int),
-                    'normalize_Sstep':self.all_comb[:, -1].astype(int)
+                    'normalize_Astep':self.all_comb[:, 7].astype(int),
+                    'normalize_Sstep':self.all_comb[:, 8].astype(int),
+                    'runidx': runid
                 }
                 df = pd.DataFrame(df)
+                df = df.groupby('runidx').mean()
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
                 df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
                             df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)

@@ -2,7 +2,7 @@ from array import array
 from random import random
 import numpy as np
 import iSDR_cython as ciSDR
-
+import uuid
 
 
 def test_activeset():
@@ -58,5 +58,17 @@ def test_norm():
     t5 = cl.Acoef_.shape[0] == 3
     t6 = cl.Scoef_.shape[0] == 3
     if not t1 or not t2 or not t3 or not t4 or not t5 or not t6:
+        return False
+    return True
+
+
+def test_createdelete():
+    foldername = './tmp/tmp_' + str(uuid.uuid4())
+    ciSDR.utils.createfolder(foldername)
+    from os import path
+    t1 = path.isdir(foldername)
+    ciSDR.utils.deletefolder(foldername)
+    t2 = path.isdir(foldername)
+    if not t1 or t2:
         return False
     return True

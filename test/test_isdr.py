@@ -72,3 +72,41 @@ def test_createdelete():
     if not t1 or t2:
         return False
     return True
+
+def test_create_bigG():
+    n_c, n_s, n_t = 2, 3 , 5
+    G = np.ones((n_c, n_s))
+    A = np.eye(n_s)
+    M = np.zeros((n_c, n_t))
+    m_p = A.shape[1]//n_s
+    Gb = ciSDR.utils.create_bigG(G, A, M).toarray()
+    t1 = Gb.shape[0] == n_t * n_c
+    t2 = Gb.shape[1] == n_s * (n_t + m_p - 1)
+    x = n_c*np.ones(Gb.shape[1])
+    y = Gb.sum(axis=0) - n_c
+    t3 = np.sum(y) == 0
+    if not t1 or not t2 or not t3:
+        return False
+    return True
+
+def test_getphi():
+    n_t = 200
+    n_c, n_s = 3,3
+    np.random.seed(40)
+    G = np.abs(np.random.normal(0,1,(n_c, n_s)))
+    J = np.zeros((n_s, n_t))
+    J[:3, 0] = [10, 0.1, 0]
+    A = np.array([[0.9,-0.4,0], [0.25, 0.97,0],[0.5,0,0.5]])
+    for i in range(J.shape[-1]-1):
+        J[:3, i+1] = np.dot(A, J[:3, i])
+    SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
+    m_p = 1
+    M = np.dot(G, J[:, m_p:])
+    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=1)
+    t1 = not hasattr(cl, 'eigs')
+    cl.get_phi()
+    t2 = hasattr(cl, 'eigs')
+    if t1 and t2:
+        return True
+    return False

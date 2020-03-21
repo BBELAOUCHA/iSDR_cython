@@ -25,11 +25,11 @@ from . import utils
 ///// \author Brahim Belaoucha  <br>
 /////         Copyright (c) 2020 <br>
 ///// If you used this function, please cite one of the following:
-//// (1) Brahim Belaoucha, Théodore Papadopoulo. Large brain effective
-    network from EEG/MEG data and dMR information. PRNI 2017 – 7th 
+//// (1) Brahim Belaoucha, Theodore Papadopoulo. Large brain effective
+    network from EEG/MEG data and dMR information. PRNI 2017 - 7th 
     International Workshop on Pattern Recognition in NeuroImaging,
     Jun 2017, Toronto, Canada. 
-//// (2) Brahim Belaoucha, Mouloud Kachouane, Théodore Papadopoulo.
+//// (2) Brahim Belaoucha, Mouloud Kachouane, Theodore Papadopoulo.
     Multivariate Autoregressive Model Constrained by Anatomical
     Connectivity to Reconstruct Focal Sources. 2016 38th Annual
     International Conference of the IEEE Engineering in Medicine and
@@ -92,14 +92,14 @@ class iSDR():
         old_version: bool flag to use either eISDR(false) or iSDR (true)
          which can be found in the following papers:
          
-            (1) Brahim Belaoucha, Théodore Papadopoulo. Large brain
+            (1) Brahim Belaoucha, Theodore Papadopoulo. Large brain
             effective network from EEG/MEG data and dMR
-            information. PRNI 2017 – 7th International Workshop on 
+            information. PRNI 2017 - 7th International Workshop on
             Pattern Recognition in NeuroImaging,
             Jun 2017, Toronto, Canada.
 
             (2) Brahim Belaoucha, Mouloud Kachouane,
-            Théodore Papadopoulo. Multivariate Autoregressive Model
+            Theodore Papadopoulo. Multivariate Autoregressive Model
             Constrained by Anatomical Connectivity to Reconstruct
             Focal Sources. 2016 38th Annual International
             Conference of the IEEE Engineering in Medicine and

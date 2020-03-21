@@ -656,7 +656,10 @@ class iSDRcv():
             self.all_comb = combinations
         try:
             if self.parallel:
-                pool = multiprocessing.Pool(multiprocessing.cpu_count() - 2)
+                nbr_cpu = multiprocessing.cpu_count() - 2
+                if nbr_cpu < 1:
+                    nbr_cpu = 1
+                pool = multiprocessing.Pool(nbr_cpu)
                 out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
                 if self.cv is None:

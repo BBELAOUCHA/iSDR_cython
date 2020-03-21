@@ -127,8 +127,8 @@ def test_cvfold():
     from iSDR_cython import linear_model
 
     clf = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
-                              la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1, 0.5],
-                              normalize=[0, 1],
+                              la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1],
+                              normalize=0,
                               model_p=[1],
                               old_version=False,
                               normalize_Astep=[0],
@@ -138,8 +138,8 @@ def test_cvfold():
                               )
     clf.run(G, M, SC)
     df = clf.results
-    t1= np.abs(df.Obj.min() - 18.23823392447884) < 1e-3
-    t2 = np.abs(df.rms.min() - 6.450373573199833) < 1e-3
+    t1= np.abs(df.Obj.min() - 29.291233354057265) < 1e-3
+    t2 = np.abs(df.rms.min() - 16.45599737341682) < 1e-3
     t3 = np.abs(df.nbr.min() - 1) < 1e-3
     if t1 and t2 and t3:
         return True
@@ -174,6 +174,40 @@ def test_cv():
     df = clf.results
     t1= np.abs(df.Obj.min() - 4.450684173236133) < 1e-3
     t2 = np.abs(df.rms.min() - 0.0005879948232802647) < 1e-3
+    t3 = np.abs(df.nbr.min() - 1) < 1e-3
+    if t1 and t2 and t3:
+        return True
+    return False
+
+def test_seqcvfold():
+    n_t = 200
+    n_c, n_s = 3, 3
+    np.random.seed(40)
+    G = np.abs(np.random.normal(0, 1, (n_c, n_s)))
+    J = np.zeros((n_s, n_t))
+    J[:3, 0] = [10, 0.1, 0]
+    A = np.array([[0.9, -0.4, 0], [0.25, 0.97, 0], [0.5, 0, 0.5]])
+    for i in range(J.shape[-1] - 1):
+        J[:3, i + 1] = np.dot(A, J[:3, i])
+    SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
+    m_p = 1
+    M = np.dot(G, J[:, m_p:])
+    from iSDR_cython import linear_model
+
+    clf = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
+                              la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1],
+                              normalize=0,
+                              model_p=[1],
+                              old_version=False,
+                              normalize_Astep=[0],
+                              normalize_Sstep=[1],
+                              cv=3,
+                              parallel=False
+                              )
+    clf.run(G, M, SC)
+    df = clf.results
+    t1= np.abs(df.Obj.min() - 29.291233354057265) < 1e-3
+    t2 = np.abs(df.rms.min() - 16.45599737341682) < 1e-3
     t3 = np.abs(df.nbr.min() - 1) < 1e-3
     if t1 and t2 and t3:
         return True

@@ -178,7 +178,7 @@ def test_cv():
                               normalize_Astep=[0],
                               normalize_Sstep=[1],
                               cv=None,
-                              parallel=True
+                              parallel=False
                               )
     clf.run(G, M, SC)
     clf2.run(G, M, SC)

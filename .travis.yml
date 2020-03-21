@@ -27,6 +27,7 @@ install:
     - conda install --yes python=$TRAVIS_PYTHON_VERSION scipy
     - pip install "numpy~=1.6" "setuptools>=42.0.2" "wheel>=0.33.6" "cython>=0.29" "scikit-learn~=0.22" "pandas>=1.0.1"
     - pip install "joblib>=0.14.1"
+    - pip install seaborn
     - pip install nose
     - pip install codecov
     - python setup.py build_ext --inplace

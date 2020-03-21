@@ -170,12 +170,27 @@ def test_cv():
                               cv=None,
                               parallel=True
                               )
+    clf2 = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
+                              la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1, 0.5],
+                              normalize=0,
+                              model_p=[1],
+                              old_version=False,
+                              normalize_Astep=[0],
+                              normalize_Sstep=[1],
+                              cv=None,
+                              parallel=True
+                              )
     clf.run(G, M, SC)
+    clf2.run(G, M, SC)
     df = clf.results
+    df2 = clf2.results
     t1= np.abs(df.Obj.min() - 4.450684173236133) < 1e-3
     t2 = np.abs(df.rms.min() - 0.0005879948232802647) < 1e-3
     t3 = np.abs(df.nbr.min() - 1) < 1e-3
-    if t1 and t2 and t3:
+    t1_= np.abs(df2.Obj.min() - 4.450684173236133) < 1e-3
+    t2_ = np.abs(df2.rms.min() - 0.0005879948232802647) < 1e-3
+    t3_ = np.abs(df2.nbr.min() - 1) < 1e-3
+    if t1 and t2 and t3 and t1_ and t2_ and t3_:
         return True
     return False
 

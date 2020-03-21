@@ -14,7 +14,7 @@ setup(
     python_requires='~=3.5',
     package_dir={'': 'src'},
     packages=find_packages(where='src'),
-    install_requires=['numpy~=1.6', 'scipy~=1.4', 'scikit-learn~=0.22', 'pandas>=1.0.1', 'seaborn>=0.10.0', 'tqdm>=4.42.1'],
+    install_requires=['numpy~=1.6', 'scipy~=1.4', 'scikit-learn~=0.22', 'pandas>=1.0.1', 'seaborn>=0.10.0', 'tqdm>=4.42.1', 'joblib>=0.14.1'],
     ext_modules=extensions,
     package_data={'iSDR_cython': ['*.pxd']},
     author='Brahim Belaoucha',

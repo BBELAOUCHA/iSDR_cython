@@ -659,7 +659,11 @@ class iSDRcv():
                 pool = multiprocessing.Pool(multiprocessing.cpu_count() - 2)
                 out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
-                self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, runid = zip(*out)
+                if self.cv is None:
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = zip(*out)
+                    runid = []
+                else:
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, runid = zip(*out)
             else:
                 runid = []
                 for i in tqdm(range(len(self.all_comb))):

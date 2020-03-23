@@ -261,6 +261,17 @@ class iSDR():
         nbr_samples = y.shape[1]
         z = self.Scoef_[:, 2*self.m_p:-self.m_p - 1]
         G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
+
+        if self.old:
+            yt = self.Scoef_[:, 3*self.m_p:-self.m_p]
+            yt = yt.reshape(-1, order='F')
+        else:
+            yt = y[:, 2*self.m_p+1:-self.m_p]
+            yt = yt.reshape(-1, order='F')
+        if len(self.active_set) == 1:
+            self.la_max = np.max(np.abs(np.dot(G.T, yt) / G.shape[0]))
+            self.la[0] *= self.la_max*0.01
+
         if self.la[0] != 0:
             model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
             fit_intercept=False, copy_X=True,
@@ -271,14 +282,9 @@ class iSDR():
             model = LinearRegression(fit_intercept=False,
             normalize=self.normalize_Astep, copy_X=True)
 
-        if self.old:
-            yt = self.Scoef_[:, 3*self.m_p:-self.m_p]
-            yt = yt.reshape(-1, order='F')
-        else:
-            yt = y[:, 2*self.m_p+1:-self.m_p]
-            yt = yt.reshape(-1, order='F')
-
         model.fit(G, yt)
+        self.GG = G.copy()
+        self.YY = yt
         if self.la[0] != 0:
             self.a_dualgap.append(None)
         else:

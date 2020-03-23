@@ -1,5 +1,3 @@
-from array import array
-from random import random
 import numpy as np
 import iSDR_cython as ciSDR
 import uuid
@@ -82,7 +80,6 @@ def test_create_bigG():
     Gb = ciSDR.utils.create_bigG(G, A, M).toarray()
     t1 = Gb.shape[0] == n_t * n_c
     t2 = Gb.shape[1] == n_s * (n_t + m_p - 1)
-    x = n_c*np.ones(Gb.shape[1])
     y = Gb.sum(axis=0) - n_c
     t3 = np.sum(y) == 0
     if not t1 or not t2 or not t3:
@@ -207,8 +204,6 @@ def test_seqcvfold():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    from iSDR_cython import linear_model
-
     clf = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
                               la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1],
                               normalize=0,

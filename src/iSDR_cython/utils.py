@@ -4,7 +4,7 @@ import os
 import shutil
 import random
 from scipy.sparse import coo_matrix
-from joblib import dump, load
+from joblib import load
 from . import linear_model
 def _constructJt(Jt):
     n_s, m_p = Jt.shape
@@ -39,9 +39,6 @@ def construct_J(G, SC, J, m_p, old=False):
     n_m, n = G.shape
     if n != n_s:
         print('wrong dimenstion')
-    row  = []
-    col  = []
-    data = []
     SCx = np.zeros((n_s, n_s*m_p))
     if SC.shape[0] == SC.shape[1]:
         for i in range(m_p):
@@ -65,21 +62,21 @@ def construct_J(G, SC, J, m_p, old=False):
 def Compute_alpha_max(Ga, M, model_p):
     """
     This function compute the alpha max which is the smallest regularization
-    parameter alpha that results to no active brain region when using 
+    parameter alpha that results to no active brain region when using
     l21 mixed norm (MxNE)
     
     Parameters:
     ----------
         Ga: GxA where G is the gain matrix and A is the MAR model
         M: The EEG or MEG measurements
-        model_p: The order of the MAR model 
+        model_p: The order of the MAR model
     
     Return:
     ---------
     alpha_max: the regularization value that results to no active brain
               region
     """
-    n_c, n_s = Ga.shape
+    _, n_s = Ga.shape
     n_s = n_s//model_p
     GM = np.zeros((M.shape[1]*model_p, n_s))
     alpha_max = 0
@@ -92,7 +89,7 @@ def Compute_alpha_max(Ga, M, model_p):
 
 def createfolder(foldername):
     """
-    this function creates a folder 
+    this function creates a folder
     """
     try:
         os.mkdir(foldername)
@@ -103,7 +100,7 @@ def createfolder(foldername):
 
 def deletefolder(foldername):
     """
-    this function deletes a folder 
+    this function deletes a folder
     """
     try:
         shutil.rmtree(foldername, ignore_errors=True)
@@ -164,7 +161,7 @@ def _run(args):
                     M.dat: EEG/MEG data
                     G.dat: gain matix
                     SC.dat:    structral connectivity
-                    A.dat: Initial MAR model, if not None is passed 
+                    A.dat: Initial MAR model, if not None is passed
     o_v:        flag to used old version iSDR or not
     n_Astep:    normalize transfer function in A step
     n_Sstep:    normalize transfer function in S step

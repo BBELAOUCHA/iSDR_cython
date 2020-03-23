@@ -9,11 +9,10 @@ import time
 from matplotlib.patches import Rectangle
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from joblib import dump, load
-import multiprocessing, itertools, uuid, warnings, os
+from joblib import dump
+import multiprocessing, uuid, warnings, os
 from itertools import product
-from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
-from sklearn.utils import check_array, check_X_y
+from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 from sklearn.linear_model import ElasticNet, LinearRegression
 import traceback
@@ -26,9 +25,9 @@ from . import utils
 /////         Copyright (c) 2020 <br>
 ///// If you used this function, please cite one of the following:
 //// (1) Brahim Belaoucha, Theodore Papadopoulo. Large brain effective
-    network from EEG/MEG data and dMR information. PRNI 2017 - 7th 
+    network from EEG/MEG data and dMR information. PRNI 2017 - 7th
     International Workshop on Pattern Recognition in NeuroImaging,
-    Jun 2017, Toronto, Canada. 
+    Jun 2017, Toronto, Canada.
 //// (2) Brahim Belaoucha, Mouloud Kachouane, Theodore Papadopoulo.
     Multivariate Autoregressive Model Constrained by Anatomical
     Connectivity to Reconstruct Focal Sources. 2016 38th Annual
@@ -39,24 +38,25 @@ from . import utils
 ////===================================================================
 =======================================================================
 """
+
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
     max_iter=[10000, 2000], tol=1e-6, random_state=None, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
     normalize_Astep=False):
         """
-        Linear Model trained with the modified L21 prior as regularizer 
+        Linear Model trained with the modified L21 prior as regularizer
            (aka the Mulitasklasso) and iSDR
            this function implements what is called iSDR (S-step)
            optimization
-            ||y - G A w||^2_2 + l21_ratio * ||w||_21 + 
+            ||y - G A w||^2_2 + l21_ratio * ||w||_21 +
                        la[0] * la[1] * ||A||_1 +
                        0.5 * la[0] * (1 - la[1]) * ||A||^2_2
         Parameters
         ----------
         l21_ratio: scaler, regularization parameter. Has to be > 0 and
         < 100
-        la: list of two elements 
+        la: list of two elements
                        la[0] * la[1] * ||w||_1 +
                    0.5 * la[0] * (1 - la[1]) * ||w||^2_2
             la[0] = 0  no prior on A
@@ -86,12 +86,11 @@ class iSDR():
             iteration rather than looping over features sequentially by
              default.
 
-        verbose: 
+        verbose:
             int/bool flag used to give more details about iSDR procedure
 
         old_version: bool flag to use either eISDR(false) or iSDR (true)
          which can be found in the following papers:
-         
             (1) Brahim Belaoucha, Theodore Papadopoulo. Large brain
             effective network from EEG/MEG data and dMR
             information. PRNI 2017 - 7th International Workshop on
@@ -105,7 +104,7 @@ class iSDR():
             Conference of the IEEE Engineering in Medicine and
             Biology Society (EMBC), Aug 2016, Orlando,
             United States. 2016.
-            
+
         normalize_Sstep: Normalize transfer function in the Sstep
         normalize_Astep: Normalize transfer function in the Astep
 
@@ -116,8 +115,8 @@ class iSDR():
                     activity
         self.xscale: list of (n_active) at each iteration, weights that
                     is used to normalize in Sstep
-        self.weights: list of weights used to normalize Acoef_ in 
-                    self.solver() 
+        self.weights: list of weights used to normalize Acoef_ in
+                    self.solver()
         self.active_set: list number of active regions/sources at each
                          iteration
         self.dual_gap: list contains the dual gap values of MxNE solver
@@ -155,13 +154,13 @@ class iSDR():
 
         y : (n_samples, n_targets) which represents the EEG/MEG data
         model_p: integer, the order of the assumed multivariate
-                 autoregressive model 
+                 autoregressive model
         model_p: int MVAR model order
 
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
-        
+        n_targets == number of data samples
+
         Returns
         ----------
         self
@@ -219,11 +218,11 @@ class iSDR():
         X : (n_samples, n_features*self.m_p) which represents the gain matrix
              = GxA, A[A_self.m_p, .., A_1]
         y : (n_samples, n_targets) which represents the EEG/MEG data
-        
+
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
-        self.m_p = MAR model order 
+        n_targets == number of data samples
+        self.m_p = MAR model order
         Returns
         ----------
         self.Scoef_: (n_features, n_targets + model_p - 1)
@@ -235,7 +234,7 @@ class iSDR():
     def A_step(self, X, y, SC, normalize):
         """Fit model of MVAR coefficients with either Lasso or Ridge.
         Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
-                      la[0] * la[1] * ||A||_1 + 
+                      la[0] * la[1] * ||A||_1 +
                       0.5 * la[0] * (1 - la[1]) * ||A||_2
 
         Parameters
@@ -245,14 +244,14 @@ class iSDR():
 
         y : (n_samples, n_targets) which represents the EEG/MEG data
 
-        SC: (n_features, n_features), structural connectivity between 
-            brain sources/regions, only coefficients representing 
+        SC: (n_features, n_features), structural connectivity between
+            brain sources/regions, only coefficients representing
             connected regions will be estimated
-            
+
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
-        
+        n_targets == number of data samples
+
         Returns
         ----------
         self.Acoef_: (n_active, n_active*model_p)
@@ -306,18 +305,18 @@ class iSDR():
                A=None, normalize = False, S_tol=1e-3):
         """ ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
-            
+
         argmin(w, A)
-               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 + 
+               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 +
                la[0] * la[1] * ||A||_1 + la[0] * (1-la[1]) * ||A||_2
-        
+
         S-step:
                 argmin(w, A=constant)
                ||y - X_A w||^2_2 + l21_ratio * ||w||_21
-                
+
         A-step:
                 argmin(w=constant, A)
-                ||y - X_A w||^2_2  + la[0] * la[1] * ||A||_1 + 
+                ||y - X_A w||^2_2  + la[0] * la[1] * ||A||_1 +
                 la[0] * (1-la[1]) * ||A||_2
         X_A = G x A, A=[A_p, .., A_1]
         Parameters
@@ -326,18 +325,18 @@ class iSDR():
 
         M : (n_samples, n_targets) which represents the EEG/MEG data
 
-        SC: (n_features, n_features), structural connectivity between 
+        SC: (n_features, n_features), structural connectivity between
             brain sources/regions
         nbr_iter: int number of iteration between S and A step
-        
+
         model_p: int MVAR model order (spatial and temporal effective
         connectivity between brain regions/sources)
-        
+
         A: (n_features, n_features*model_p) an initial MVAR model,
         default None will generate an identity MVAR model at p
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
+        n_targets == number of data samples
 
         normalize: bool: normalize A row way (divide by max value)
                    before next S step
@@ -347,7 +346,7 @@ class iSDR():
         Attributes
         ----------
         self.Acoef_: (n_active, n_active*model_p) estimated MVAR model
-        self.Scoef_: (n_active, n_targets + model_p - 1) estimated brain 
+        self.Scoef_: (n_active, n_targets + model_p - 1) estimated brain
                     activity
         self.Scoef_: (n_active) weights that was used to normalize self.Acoef_
         self.active_set: list number of active regions/sources at each
@@ -355,8 +354,8 @@ class iSDR():
         self.dual_gap: list containing the dual gap values of MxNE solver
                        at each iteration
         self.mxne_iter: list containing the number of iteration until
-                        convergence for MxNE solver 
-        
+                        convergence for MxNE solver
+
         n_active == number of active sources/regions
         """
         self.time = - time.time()
@@ -422,7 +421,7 @@ class iSDR():
 
     def _reorder_A(self):
         """ this function reorder the MVAR model matrix so that it can
-            be used to construct PHI which can be used to compute 
+            be used to construct PHI which can be used to compute
             dynamics (eigenvalues)
             
             before:
@@ -448,7 +447,7 @@ class iSDR():
         """ this function constructs PHI companion matrix which controls
             the dynamics
             of brain activation
-            Phi:  
+            Phi:
                   A_1  A_2 . . . .   A_p
                    I    0             0
                    0    I             0
@@ -481,7 +480,7 @@ class iSDR():
     def plot_effective(self, fmt='.3f', annot=True, cmap=None,
                        fig_size = 5, mask_flag=True):
         """Plotting function
-        Plots the effective connectivity 
+        Plots the effective connectivity
         """
         if not hasattr(self, 'Acoef_'):
             if self.verbose:
@@ -516,7 +515,7 @@ class iSDR():
 
     def bias_correction(self):
         """
-        this function is used to corrected the magnitude of the 
+        this function is used to corrected the magnitude of the
         reconstructed brain activity by solving the following:
                   min sum_t ||y_t - Gr sum_i(Ar_i Jr_{t-i})||^2_2
         where Jr: is the magnitude of the reduced source space
@@ -549,8 +548,8 @@ class iSDRcv():
                  verbose=False,old_version=False,
                  normalize_Astep=[0],normalize_Sstep=[0], cv=None):
         """
-        This function is used to run cross-validation with grid run of 
-        all combination of parameters and hyper-parameters and return 
+        This function is used to run cross-validation with grid run of
+        all combination of parameters and hyper-parameters and return
         the cost function for all of them
         
         Parameters
@@ -744,7 +743,7 @@ class eiSDR_cv():
         l21_values: list of l21 norm reg parameters for Sstep
         la_values: list of l1 norm reg parameter for Astep
         la_ratio_values: list of l1/2 ratio for Astep
-        normalize: can be [0, 1] to normalize or not A before 
+        normalize: can be [0, 1] to normalize or not A before
                            Step
         max_run: used to limit the number of grid search run
                          default is None== all of grid will be run

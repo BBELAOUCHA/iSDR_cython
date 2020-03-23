@@ -1,7 +1,8 @@
 # iSDR_cython: Cython implementation of eISDR_p (elasticnet Iterative Source and Dynamics Reconstruction)
 [![Build Status](https://travis-ci.com/BBELAOUCHA/iSDR_cython.svg?branch=development)](https://travis-ci.com/BBELAOUCHA/iSDR_cython)
 [![codecov](https://codecov.io/gh/BBELAOUCHA/iSDR_cython/branch/development/graph/badge.svg)](https://codecov.io/gh/BBELAOUCHA/iSDR_cython)
-[![Codacy Badge](https://api.codacy.com/project/badge/Grade/7835385508d64da3af3cd0ae9b4520e7)](https://www.codacy.com/manual/BBELAOUCHA/iSDR_cython?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=BBELAOUCHA/iSDR_cython&amp;utm_campaign=Badge_Grade)
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/555130d02e134e819bc599b93cfe53c9)](https://www.codacy.com/manual/BBELAOUCHA/iSDR_cython?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=BBELAOUCHA/iSDR_cython&amp;utm_campaign=Badge_Grade)
+
 A solver of EEG/MEG inverse problem using a multivariate auto-regressive model (MVAR) or order p on the source space. In this package, you can find two solvers eISDR and iSDR approaches.
 
 <img src="https://latex.codecogs.com/gif.latex?U%28J%2C%20A%29%20%3D%20%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7CJ%5C%7C%5Cright_%7B21%7D%20&plus;%20%5Calpha%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B1%7D%20&plus;%20%5Cbeta%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B2%7D" title=" U(J, A) = \left    \|M_v - G_dJ_v\|\right_2^2 + \lambda \left    \|J\|\right_{21}  + \alpha \left    \|S_cA_v\|\right_{1} + \beta \left    \|S_cA_v\|\right_{2}"/>

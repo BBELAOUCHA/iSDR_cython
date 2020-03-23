@@ -160,7 +160,7 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
     cdef floating nn
     cdef floating s
     cdef floating l21_norm
-    
+
     if alpha == 0:
         if verbose:
             warnings.warn("Coordinate descent with alpha=0 may lead to unexpected"
@@ -190,17 +190,13 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                 _copy(n_t_s, wii_ptr, 1, &tmp[0], 1)
                 # tmp = np.dot(X[:, ii][None, :], R).ravel()
                 for i in range(m_p - 1):
-                    # First block
+                    # First and last block
                     for j in range(i + 1):
                         tmp[i] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (i - j) * block, 1,
                               &R[0] + j * n_c, 1))
                               
                         tmp[n_t_s - i - 1] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1,
                               &R[0] + (n_t - 1 - i + j) * n_c, 1))
-                    # Last block
-                    #jj = n_t_s  + i - m_p + 1
-                    #for j in range(n_t_s - jj):
-                    #    tmp[jj] += mu_X[ii]*(_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - j) * block, 1, &R[0] + (n_t - m_p + 1 + j + i) * n_c, 1))
                 # Middle block
                 for i in range(m_p - 1, n_t_s - m_p + 1):
                     for j in range(m_p):
@@ -214,10 +210,6 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                 d_w_ii = diff_abs_max(n_t_s, &tmp[0], wii_ptr)
                 W_ii_abs_max = abs_max(n_t_s, &tmp[0])
                 if d_w_ii != 0.0:
-                    #for jj in range(n_t): # n_t = T-p
-                    #    for j in range(n_c):
-                    #        for i in range(m_p):
-                    #            R[j + jj * n_c] -= X[j, ii + i * n_s] * (tmp[jj + i] - w_ii[jj + i])                            
                     for jj in range(n_t_s):
                         tmp[jj] -= w_ii[jj]
 
@@ -240,14 +232,14 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                         for i in range(m_p):
                             s += (_dot(n_c, X_ptr + ii * n_c + (m_p - 1 - i) * block, 1,  &R[0] + (jj + i - m_p + 1 ) * n_c, 1))
                         XtA[ii, jj] = s
-    #
+
                     for i in range(m_p - 1):
                         s = 0.0
                         for j in range(0, i + 1):
                             s += (_dot(n_c, X_ptr + ii * n_c + (i-j) * block, 1, &R[0] + j * n_c, 1))
                         XtA[ii, i] = s
                     XtA[ii, n_t_s - 1] = (_dot(n_c, X_ptr + ii * n_c + (m_p - 1 ) * block, 1, &R[0] + (n_t - 1) * n_c, 1))
-    
+
                 # dual_norm_XtA = np.max(np.sqrt(np.sum(XtA ** 2, axis=1)))
                 dual_norm_XtA = 0.0
                 for ii in range(n_s):
@@ -255,10 +247,10 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                     XtA_axis1norm = _nrm2(n_t_s, &XtA[0, 0] + ii * n_t_s, 1)
                     if XtA_axis1norm > dual_norm_XtA:
                         dual_norm_XtA = XtA_axis1norm
-    
+
                 R_norm = _nrm2(n_t * n_c, &R[0], 1)
                 w_norm = _nrm2(n_s * n_t_s, W_ptr, 1)
-    
+
                 if (dual_norm_XtA > alpha):
                     const =  alpha / dual_norm_XtA
                     A_norm = R_norm * const
@@ -266,7 +258,7 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                 else:
                     const = 1.0
                     gap = R_norm ** 2
-    
+
                 # ry_sum = np.sum(R * y)
                 ry_sum = 0.0
                 for ii in range(n_t*n_c):
@@ -283,7 +275,7 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                     # return if we reached desired tolerance
                     break
         else:
-                # for/else, runs if for doesn't end with a `break`
+            # for/else, runs if for doesn't end with a `break`
             with gil:
                 if verbose:
                     warnings.warn("Objective did not converge. You might want to "

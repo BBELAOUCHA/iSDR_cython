@@ -228,7 +228,7 @@ class iSDR():
         ----------
         self.Scoef_: (n_features, n_targets + model_p - 1)
         """
-        self._fit(X, y, self.m_p)
+        self._fit(X.astype(np.float32), y.astype(np.float32), self.m_p)
         return self.Scoef_
 
 
@@ -283,14 +283,13 @@ class iSDR():
             model = LinearRegression(fit_intercept=False,
             normalize=self.normalize_Astep, copy_X=True)
 
-        model.fit(G, yt)
-        self.GG = G.copy()
-        self.YY = yt
+        model.fit(G.astype(np.float32), yt.astype(np.float32))
+
         if self.la[0] != 0:
             self.a_dualgap.append(None)
         else:
             self.a_dualgap.append(None)
-        A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
+        A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p, dtype=np.float32)
         A[idx] = model.coef_
         n = X.shape[1]
         self.Acoef_ = np.array(A.reshape((n, n*self.m_p), order='C'))

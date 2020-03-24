@@ -107,9 +107,10 @@ def deletefolder(foldername):
     except OSError:
         print ("Deletion of the directory %s failed" % foldername)
     else:
-        print ("Successfully deleted the directory %s" % foldername) 
+        print ("Successfully deleted the directory %s" % foldername)
 
 def create_bigG(G, A, M):
+
     """
     This function is used when running bias correction and build the
     the following matrix:
@@ -148,6 +149,7 @@ def create_bigG(G, A, M):
     return coo_matrix((data, (row, col)), shape=(n_t*n_c, n_s*(n_t + m_p - 1)))
 
 def _run(args):
+
     """
     The core function used to run the cross validation
     Parameters:
@@ -165,9 +167,9 @@ def _run(args):
     o_v:        flag to used old version iSDR or not
     n_Astep:    normalize transfer function in A step
     n_Sstep:    normalize transfer function in S step
-    
+
     Return:
-    ---------- 
+    -------
     rms: reconstruction error of MEG/EEG measurements
     n: number of active regions/sources
     l21s: l21 norm of the reconstructed sources
@@ -221,13 +223,13 @@ def _runCV(args):
                     M.dat: EEG/MEG data
                     G.dat: gain matix
                     SC.dat:    structral connectivity
-                    A.dat: Initial MAR model, if not None is passed 
+                    A.dat: Initial MAR model, if not None is passed
     o_v:        flag to used old version iSDR or not
     n_Astep:    normalize transfer function in A step
     n_Sstep:    normalize transfer function in S step
-    
+
     Return:
-    ---------- 
+    -------
     rms: reconstruction error of MEG/EEG measurements
     n: number of active regions/sources
     l21s: l21 norm of the reconstructed sources

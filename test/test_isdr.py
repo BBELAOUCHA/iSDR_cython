@@ -121,8 +121,6 @@ def test_cvfold():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    from iSDR_cython import linear_model
-
     clf = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
                               la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1],
                               normalize=0,

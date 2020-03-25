@@ -42,7 +42,6 @@ scipy~=1.4
 
 scikit-learn~=0.22
 
-
 ## Installation
 
 pip3 install .

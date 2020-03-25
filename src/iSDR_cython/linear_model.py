@@ -19,7 +19,7 @@ import traceback
 from . import cyISDR as cd_fast
 from . import utils
 """
-=======================================================================
+////=======================================================================
 ////===================================================================
 ///// author Brahim Belaoucha  <br>
 /////         Copyright (c) 2020 <br>
@@ -258,7 +258,7 @@ class iSDR():
         n_targets == number of data samples
 
         Returns
-        ----------
+        -------
         self.Acoef_: (n_active, n_active*model_p)
         n_active == number of active sources/regions
         """
@@ -571,7 +571,7 @@ class iSDRcv():
         This function is used to run cross-validation with grid run of
         all combination of parameters and hyper-parameters and return
         the cost function for all of them
-        
+
         Parameters
         ----------
                 model_p: list of tried MAR order

@@ -70,7 +70,7 @@ def Compute_alpha_max(Ga, M, model_p):
         Ga: GxA where G is the gain matrix and A is the MAR model
         M: The EEG or MEG measurements
         model_p: The order of the MAR model
-    
+
     Return:
     ---------
     alpha_max: the regularization value that results to no active brain
@@ -229,7 +229,7 @@ def _runCV(args):
     n_Sstep:    normalize transfer function in S step
 
     Return:
-    -------
+    ------
     rms: reconstruction error of MEG/EEG measurements
     n: number of active regions/sources
     l21s: l21 norm of the reconstructed sources
@@ -237,7 +237,7 @@ def _runCV(args):
     l1a_l2norm: the l2norm of the reconstructed MAR model
     cl.l21_ratio: the l21 norm used in the regularization (not in %)
     """
-    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, cv, seed, test_data, run_ix  = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, _, seed, test_data, run_ix  = args
     test_data = np.array(test_data)
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))

@@ -267,7 +267,8 @@ def test_getparameters():
          'normalize_Astep': False,
          'mar_model': 1,
          'nbr_iter': 1,
-         'S_tol': 0.001}
+         'S_tol': 1e-6,
+         'A_tol':0.1}
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)

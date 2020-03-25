@@ -41,9 +41,9 @@ from . import utils
 
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
-    max_iter=[10000, 2000], tol=1e-6, random_state=None, selection='cyclic',
+    max_iter=[10000, 2000], random_state=None, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
-    normalize_Astep=False):
+    normalize_Astep=False, S_tol=1e-6, A_tol=0.1):
         """
         Linear Model trained with the modified L21 prior as regularizer
            (aka the Mulitasklasso) and iSDR
@@ -130,7 +130,6 @@ class iSDR():
         self.la = la
         self.max_iter = max_iter
         self.copy_X = copy_X
-        self.tol = tol
         self.random_state = random_state
         self.selection = selection
         self.verbose = verbose
@@ -142,6 +141,8 @@ class iSDR():
             self.la = [0.0, 0.0]
         self.s_dualgap = []
         self.a_dualgap = []
+        self.A_tol = A_tol
+        self.S_tol = S_tol
 
     def _fit(self, X, y, model_p):
         """Fit model with coordinate descent.
@@ -198,7 +199,7 @@ class iSDR():
         self.Scoef_, self.dual_gap_, self.eps_, self.n_iter_ = \
             cd_fast.enet_coordinate_descent_iSDR(
                 self.Scoef_, self.l21_ratio, X, y.reshape(-1, order='F'),
-                model_p, self.max_iter[0], self.tol,
+                model_p, self.max_iter[0], self.S_tol,
                 check_random_state(self.random_state), random,
                 self.verbose)
         n, m = n_features//model_p, n_tasks + model_p - 1
@@ -278,7 +279,9 @@ class iSDR():
             fit_intercept=False, copy_X=True,
             normalize=self.normalize_Astep,
             random_state=self.random_state,
-            max_iter=self.max_iter[1])
+            max_iter=self.max_iter[1],
+            selection=self.selection,
+            tol=self.A_tol)
         else:
             model = LinearRegression(fit_intercept=False,
             normalize=self.normalize_Astep, copy_X=True)
@@ -383,9 +386,8 @@ class iSDR():
         self.mxne_iter = []
         nbr_orig = Gtmp.shape[1]
         self.m_p = model_p
-        S_tol *= np.linalg.norm(np.dot(np.linalg.pinv(Gtmp), Mtmp))/Mtmp.shape[1]
+        S_tol = self.S_tol * np.linalg.norm(np.dot(np.linalg.pinv(Gtmp), Mtmp))/Mtmp.shape[1]
         previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
-        self.S_tol = S_tol
         for i in range(nbr_iter):
             GAtmp = np.dot(Gtmp, A)
             self.S_step(GAtmp, Mtmp)
@@ -419,7 +421,7 @@ class iSDR():
             A, _ = self.A_step(Gtmp, Mtmp, SCtmp, normalize=self.normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
-            if t < self.S_tol:
+            if t < S_tol:
                 if self.verbose:
                     print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i+1, S_tol, t))
                 self.time += time.time()
@@ -553,7 +555,7 @@ class iSDR():
                   selection=self.selection, verbose=self.verbose,
                   old_version=self.old, normalize_Sstep=self.normalize_Sstep,
                   normalize_Astep=self.normalize_Astep, mar_model=self.m_p, nbr_iter=self.nbr_iter,
-                  S_tol=self.S_tol)
+                  S_tol=self.S_tol, A_tol=self.A_tol)
         return params
 
 

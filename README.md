@@ -21,6 +21,10 @@ Where:
      
      * alpha, beta: regularizatiobn parameter that controls the sparsity/minimum norm of A
      
+     * alpha values )0, 100(
+     
+     * beta values [0, 1]
+     
      * A_v: vectorial form of A
      
      * S_c: matrix that select only anatomically connected regions/sources (ones and zeros elements).

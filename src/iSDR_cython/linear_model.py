@@ -551,7 +551,7 @@ class iSDR():
 
     def get_params(self):
         params = dict(l21_ratio=self.l21_ratio, la=self.la,  copy_X=self.copy_X,
-                  max_iter=self.max_iter, tol=self.tol, random_state=self.random_state,
+                  max_iter=self.max_iter, random_state=self.random_state,
                   selection=self.selection, verbose=self.verbose,
                   old_version=self.old, normalize_Sstep=self.normalize_Sstep,
                   normalize_Astep=self.normalize_Astep, mar_model=self.m_p, nbr_iter=self.nbr_iter,

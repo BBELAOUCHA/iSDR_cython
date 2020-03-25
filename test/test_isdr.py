@@ -258,7 +258,6 @@ def test_getparameters():
          'la': [0.024715335363315216, 1],
          'copy_X': True,
          'max_iter': [10000, 2000],
-         'tol': 1e-06,
          'random_state': None,
          'selection': 'cyclic',
          'verbose': 1,

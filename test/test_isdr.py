@@ -4,6 +4,7 @@ import uuid
 from iSDR_cython import linear_model
 
 def test_activeset():
+
     n_t = 200
     n_c, n_s = 3,3
     np.random.seed(40)
@@ -32,6 +33,7 @@ def test_activeset():
     return True
 
 def test_norm():
+
     n_t = 200
     n_c, n_s = 3,3
     np.random.seed(40)
@@ -61,6 +63,7 @@ def test_norm():
 
 
 def test_createdelete():
+
     foldername = './tmp/tmp_' + str(uuid.uuid4())
     ciSDR.utils.createfolder(foldername)
     from os import path
@@ -72,6 +75,7 @@ def test_createdelete():
     return True
 
 def test_create_bigG():
+
     n_c, n_s, n_t = 2, 3 , 5
     G = np.ones((n_c, n_s))
     A = np.eye(n_s)
@@ -87,6 +91,7 @@ def test_create_bigG():
     return True
 
 def test_getphi():
+
     n_t = 200
     n_c, n_s = 3,3
     np.random.seed(40)
@@ -109,6 +114,7 @@ def test_getphi():
     return False
 
 def test_cvfold():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -141,6 +147,7 @@ def test_cvfold():
     return False
 
 def test_cv():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -190,6 +197,7 @@ def test_cv():
     return False
 
 def test_seqcvfold():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -222,6 +230,7 @@ def test_seqcvfold():
     return False
 
 def test_eiSDR():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -254,6 +263,7 @@ def test_eiSDR():
 
 
 def test_getparameters():
+
     res = {'l21_ratio': 0.3777826361953773,
          'la': [0.024715335363315216, 1],
          'copy_X': True,
@@ -280,7 +290,7 @@ def test_getparameters():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=1, old_version=0,
+    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0, old_version=0,
                                  normalize_Sstep=False, normalize_Astep=False)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=0)
     x = cl.get_params()

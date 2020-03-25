@@ -366,7 +366,6 @@ class iSDR():
         self.Gorig = G.copy()
         self.normalize = normalize
         self.nbr_iter = nbr_iter
-        self.S_tol = S_tol
         Gtmp, Mtmp, SCtmp = G.copy(), M.copy(), SC.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
@@ -386,6 +385,7 @@ class iSDR():
         self.m_p = model_p
         S_tol *= np.linalg.norm(np.dot(np.linalg.pinv(Gtmp), Mtmp))/Mtmp.shape[1]
         previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
+        self.S_tol = S_tol
         for i in range(nbr_iter):
             GAtmp = np.dot(Gtmp, A)
             self.S_step(GAtmp, Mtmp)

@@ -206,7 +206,7 @@ def _run(args):
         l1a_l1norm = np.sum(np.abs(cl.Acoef_))
         l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
 
-    return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio
+    return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0]
 
 
 def _runCV(args):
@@ -292,4 +292,4 @@ def _runCV(args):
         l1a_l1norm = 0
         l1a_l2norm = 0
     rms = rms/(2*n_t*len(test_data))
-    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, run_ix
+    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], run_ix

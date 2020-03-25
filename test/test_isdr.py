@@ -251,3 +251,40 @@ def test_eiSDR():
     if t1 and t2 and t3 and t4:
         return True
     return False
+
+
+def test_getparameters():
+    res = {'l21_ratio': 0.3777826361953773,
+         'la': [0.024715335363315216, 1],
+         'copy_X': True,
+         'max_iter': [10000, 2000],
+         'tol': 1e-06,
+         'random_state': None,
+         'selection': 'cyclic',
+         'verbose': 1,
+         'old_version': 0,
+         'normalize_Sstep': False,
+         'normalize_Astep': False,
+         'mar_model': 1,
+         'nbr_iter': 1,
+         'S_tol': 0.001}
+    n_t = 200
+    n_c, n_s = 3, 3
+    np.random.seed(40)
+    G = np.abs(np.random.normal(0, 1, (n_c, n_s)))
+    J = np.zeros((n_s, n_t))
+    J[:3, 0] = [10, 0.1, 0]
+    A = np.array([[0.9, -0.4, 0], [0.25, 0.97, 0], [0.5, 0, 0.5]])
+    for i in range(J.shape[-1] - 1):
+        J[:3, i + 1] = np.dot(A, J[:3, i])
+    SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
+    m_p = 1
+    M = np.dot(G, J[:, m_p:])
+    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=1, old_version=0,
+                                 normalize_Sstep=False, normalize_Astep=False)
+    cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=0)
+    x = cl.get_params()
+    for i, v in x.items():
+        if res[i] != v:
+            return False
+    return True

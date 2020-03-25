@@ -364,6 +364,9 @@ class iSDR():
         self.time = - time.time()
         self.Morig = M.copy()
         self.Gorig = G.copy()
+        self.normalize = normalize
+        self.nbr_iter = nbr_iter
+        self.S_tol = S_tol
         Gtmp, Mtmp, SCtmp = G.copy(), M.copy(), SC.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
@@ -413,10 +416,10 @@ class iSDR():
                 break
 
             previous_j = self.Scoef_.copy()
-            A, _ = self.A_step(Gtmp, Mtmp, SCtmp, normalize=normalize)
+            A, _ = self.A_step(Gtmp, Mtmp, SCtmp, normalize=self.normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
-            if t < S_tol:
+            if t < self.S_tol:
                 if self.verbose:
                     print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i+1, S_tol, t))
                 self.time += time.time()
@@ -544,9 +547,14 @@ class iSDR():
             Z = linalg.lsmr(Gbig, self.Morig.reshape(-1, order='F'), atol=1e-12, btol=1e-12)
             self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
 
-
-
-
+    def get_params(self):
+        params = dict(l21_ratio=self.l21_ratio, la=self.la,  copy_X=self.copy_X,
+                  max_iter=self.max_iter, tol=self.tol, random_state=self.random_state,
+                  selection=self.selection, verbose=self.verbose,
+                  old_version=self.old, normalize_Sstep=self.normalize_Sstep,
+                  normalize_Astep=self.normalize_Astep, mar_model=self.m_p, nbr_iter=self.nbr_iter,
+                  S_tol=self.S_tol)
+        return params
 
 
 class iSDRcv():
@@ -648,6 +656,7 @@ class iSDRcv():
             dump(A, self.foldername+'/A.dat')
         #################################
         self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = [], [], [], [], [], []
+        self.la = []
         df = {}
         if self.cv is None:
             par_func = utils._run
@@ -675,10 +684,10 @@ class iSDRcv():
                 out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
                 if self.cv is None:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la = zip(*out)
                     runid = []
                 else:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, runid = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, runid = zip(*out)
             else:
                 runid = []
                 for i in tqdm(range(len(self.all_comb))):
@@ -689,8 +698,9 @@ class iSDRcv():
                     self.l1a_l1norm.append(x[3])
                     self.l1a_l2norm.append(x[4])
                     self.l21_ratio.append(x[5])
+                    self.la.append(x[6])
                     if not self.cv is None:
-                        runid.append(x[6])
+                        runid.append(x[-1])
                     
             if len(self.rms):
                 self.all_comb = np.array(self.all_comb)
@@ -705,6 +715,7 @@ class iSDRcv():
                     'ls_reg':self.all_comb[:, 0].astype(float),
                     'la_reg_a':self.all_comb[:, 1].astype(float),
                     'la_reg_r': self.all_comb[:, 2].astype(float),
+                    'la':np.array(self.la).astype(float),
                     'p':self.all_comb[:, 3].astype(int),
                     'normalize':self.all_comb[:, 4].astype(int),
                     'l21_real':np.array(self.l21_ratio),
@@ -715,8 +726,8 @@ class iSDRcv():
                 df = pd.DataFrame(df)
                 df = df.groupby('runidx').mean()
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
-                df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
-                            df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)
+                df.A_prior_l1*df.la*df.la_reg_r +\
+                            df.A_prior_l2*df.la*(0.5-0.5*df.la_reg_r)
                 self.time += time.time()
         except Exception as e:
             print(e)
@@ -734,7 +745,6 @@ class iSDRcv():
 
     def _delete(self):
         utils.deletefolder(self.foldername)
-
 
 
 class eiSDR_cv():

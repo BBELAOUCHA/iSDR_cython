@@ -178,7 +178,7 @@ def _run(args):
     cl.l21_ratio: the l21 norm used in the regularization (not in %)
     """
     l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep = args
-    
+
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
     SC = np.array(load(foldername+'/SC.dat', mmap_mode='r')).astype(int)

@@ -145,7 +145,8 @@ class iSDR():
         self.S_tol = S_tol
 
     def _fit(self, X, y, model_p):
-        """Fit model with coordinate descent.
+        """
+        Fit model with coordinate descent.
             Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
                       l21_ratio * ||w||_21
         Parameters
@@ -212,7 +213,8 @@ class iSDR():
 
     def S_step(self, X, y):
 
-        """Fit model with coordinate descent.
+        """
+        Fit model with coordinate descent.
             Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
                       l21_ratio * ||w||_21
         Parameters
@@ -703,7 +705,7 @@ class iSDRcv():
                     self.la.append(x[6])
                     if not self.cv is None:
                         runid.append(x[-1])
-                    
+
             if len(self.rms):
                 self.all_comb = np.array(self.all_comb)
                 if not len(runid):
@@ -756,7 +758,6 @@ class eiSDR_cv():
     normalize_Astep=[0], normalize_Sstep = [0]):
         """
         This function run grid search cross validation and return the optimal values
-
         Parameters
         -----------
             model_p: list of tried MAR order

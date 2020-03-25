@@ -1,7 +1,7 @@
 from setuptools import find_packages, setup
 from setuptools import Extension
 from os import getenv
-import numpy 
+import numpy
 with open('README.md', mode='r') as file:
     long_description = file.read()
 

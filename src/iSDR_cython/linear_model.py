@@ -522,7 +522,7 @@ class iSDR():
                 r = Rectangle((k, 0), n - 0.01, n - 0.01, fill=False, lw=3)
                 g.add_patch(r)
                 plt.text(i * n + n // 2, n + 0.5, r'$A_{}$'.format(m // n - i), fontsize=14, weight="bold")
-
+            plt.tight_layout()
         else:
             if self.verbose:
                 print('No active source is detected')

@@ -382,6 +382,7 @@ class iSDR():
         alpha_max = utils.Compute_alpha_max(np.dot(Gtmp, A), Mtmp, model_p)
         alpha_max *= 0.01;
         self.l21_ratio *= alpha_max;
+        self.alpha_max = alpha_max
         active_regions = np.arange(self.n_source)
         self.active_set = []
         self.dual_gap = []
@@ -552,12 +553,14 @@ class iSDR():
             self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
 
     def get_params(self):
-        params = dict(l21_ratio=self.l21_ratio, la=self.la,  copy_X=self.copy_X,
-                  max_iter=self.max_iter, random_state=self.random_state,
-                  selection=self.selection, verbose=self.verbose,
-                  old_version=self.old, normalize_Sstep=self.normalize_Sstep,
-                  normalize_Astep=self.normalize_Astep, mar_model=self.m_p, nbr_iter=self.nbr_iter,
-                  S_tol=self.S_tol, A_tol=self.A_tol)
+        params = dict(l21_ratio=100*self.l21_ratio/self.alpha_max,
+                      la=[self.la[0]/(self.la_max*0.01), self.la[1]],
+                      copy_X=self.copy_X, max_iter=self.max_iter,
+                      random_state=self.random_state,selection=self.selection,
+                      verbose=self.verbose, old_version=self.old,
+                      normalize_Sstep=self.normalize_Sstep,
+                      normalize_Astep=self.normalize_Astep, mar_model=self.m_p,
+                      nbr_iter=self.nbr_iter, S_tol=self.S_tol, A_tol=self.A_tol)
         return params
 
 

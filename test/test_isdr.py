@@ -264,8 +264,8 @@ def test_eiSDR():
 
 def test_getparameters():
 
-    res = {'l21_ratio': 0.3777826361953773,
-         'la': [0.024715335363315216, 1],
+    res = {'l21_ratio': 0.1,
+         'la': [0.1, 1],
          'copy_X': True,
          'max_iter': [10000, 2000],
          'random_state': None,

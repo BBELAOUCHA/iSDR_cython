@@ -553,7 +553,7 @@ class iSDR():
             self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
 
     def get_params(self):
-        params = dict(l21_ratio=100*self.l21_ratio/self.alpha_max,
+        params = dict(l21_ratio=self.l21_ratio/self.alpha_max,
                       la=[self.la[0]/(self.la_max*0.01), self.la[1]],
                       copy_X=self.copy_X, max_iter=self.max_iter,
                       random_state=self.random_state,selection=self.selection,

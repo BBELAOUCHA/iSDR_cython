@@ -1,11 +1,10 @@
-from array import array
-from random import random
 import numpy as np
 import iSDR_cython as ciSDR
 import uuid
 from iSDR_cython import linear_model
 
 def test_activeset():
+
     n_t = 200
     n_c, n_s = 3,3
     np.random.seed(40)
@@ -34,6 +33,7 @@ def test_activeset():
     return True
 
 def test_norm():
+
     n_t = 200
     n_c, n_s = 3,3
     np.random.seed(40)
@@ -63,6 +63,7 @@ def test_norm():
 
 
 def test_createdelete():
+
     foldername = './tmp/tmp_' + str(uuid.uuid4())
     ciSDR.utils.createfolder(foldername)
     from os import path
@@ -74,6 +75,7 @@ def test_createdelete():
     return True
 
 def test_create_bigG():
+
     n_c, n_s, n_t = 2, 3 , 5
     G = np.ones((n_c, n_s))
     A = np.eye(n_s)
@@ -82,7 +84,6 @@ def test_create_bigG():
     Gb = ciSDR.utils.create_bigG(G, A, M).toarray()
     t1 = Gb.shape[0] == n_t * n_c
     t2 = Gb.shape[1] == n_s * (n_t + m_p - 1)
-    x = n_c*np.ones(Gb.shape[1])
     y = Gb.sum(axis=0) - n_c
     t3 = np.sum(y) == 0
     if not t1 or not t2 or not t3:
@@ -90,6 +91,7 @@ def test_create_bigG():
     return True
 
 def test_getphi():
+
     n_t = 200
     n_c, n_s = 3,3
     np.random.seed(40)
@@ -112,6 +114,7 @@ def test_getphi():
     return False
 
 def test_cvfold():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -124,8 +127,6 @@ def test_cvfold():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    from iSDR_cython import linear_model
-
     clf = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
                               la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1],
                               normalize=0,
@@ -146,6 +147,7 @@ def test_cvfold():
     return False
 
 def test_cv():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -195,6 +197,7 @@ def test_cv():
     return False
 
 def test_seqcvfold():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -207,8 +210,6 @@ def test_seqcvfold():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    from iSDR_cython import linear_model
-
     clf = linear_model.iSDRcv(l21_values=[10 ** -i for i in range(-1, 3, 1)],
                               la_values=[10 ** -i for i in range(-1, 3, 1)], la_ratio_values=[1],
                               normalize=0,
@@ -229,6 +230,7 @@ def test_seqcvfold():
     return False
 
 def test_eiSDR():
+
     n_t = 200
     n_c, n_s = 3, 3
     np.random.seed(40)
@@ -258,3 +260,41 @@ def test_eiSDR():
     if t1 and t2 and t3 and t4:
         return True
     return False
+
+
+def test_getparameters():
+
+    res = {'l21_ratio': 0.1,
+         'la': [0.1, 1],
+         'copy_X': True,
+         'max_iter': [10000, 2000],
+         'random_state': None,
+         'selection': 'cyclic',
+         'verbose': 1,
+         'old_version': 0,
+         'normalize_Sstep': False,
+         'normalize_Astep': False,
+         'mar_model': 1,
+         'nbr_iter': 1,
+         'S_tol': 1e-6,
+         'A_tol':0.1}
+    n_t = 200
+    n_c, n_s = 3, 3
+    np.random.seed(40)
+    G = np.abs(np.random.normal(0, 1, (n_c, n_s)))
+    J = np.zeros((n_s, n_t))
+    J[:3, 0] = [10, 0.1, 0]
+    A = np.array([[0.9, -0.4, 0], [0.25, 0.97, 0], [0.5, 0, 0.5]])
+    for i in range(J.shape[-1] - 1):
+        J[:3, i + 1] = np.dot(A, J[:3, i])
+    SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
+    m_p = 1
+    M = np.dot(G, J[:, m_p:])
+    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0, old_version=0,
+                                 normalize_Sstep=False, normalize_Astep=False)
+    cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=0)
+    x = cl.get_params()
+    for i, v in x.items():
+        if res[i] != v:
+            return False
+    return True

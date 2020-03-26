@@ -4,31 +4,30 @@ import pandas as pd
 import seaborn as sns
 import random
 from scipy.sparse import linalg
-import time
-
-from matplotlib.patches import Rectangle
-import matplotlib.pyplot as plt
 from tqdm import tqdm
-from joblib import dump, load
-import multiprocessing, itertools, uuid, warnings, os
+from joblib import dump
+import multiprocessing, uuid, os
 from itertools import product
-from sklearn.linear_model._base  import LinearModel, _pre_fit, _preprocess_data
-from sklearn.utils import check_array, check_X_y
+from sklearn.utils import check_array
 from sklearn.utils.validation import check_random_state
 from sklearn.linear_model import ElasticNet, LinearRegression
+import time
+from matplotlib.patches import Rectangle
+import matplotlib.pyplot as plt
+
 import traceback
 from . import cyISDR as cd_fast
 from . import utils
 """
-=======================================================================
+////=======================================================================
 ////===================================================================
-///// \author Brahim Belaoucha  <br>
+///// author Brahim Belaoucha  <br>
 /////         Copyright (c) 2020 <br>
 ///// If you used this function, please cite one of the following:
 //// (1) Brahim Belaoucha, Theodore Papadopoulo. Large brain effective
-    network from EEG/MEG data and dMR information. PRNI 2017 - 7th 
+    network from EEG/MEG data and dMR information. PRNI 2017 - 7th
     International Workshop on Pattern Recognition in NeuroImaging,
-    Jun 2017, Toronto, Canada. 
+    Jun 2017, Toronto, Canada.
 //// (2) Brahim Belaoucha, Mouloud Kachouane, Theodore Papadopoulo.
     Multivariate Autoregressive Model Constrained by Anatomical
     Connectivity to Reconstruct Focal Sources. 2016 38th Annual
@@ -39,24 +38,25 @@ from . import utils
 ////===================================================================
 =======================================================================
 """
+
 class iSDR():
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
-    max_iter=[10000, 2000], tol=1e-6, random_state=None, selection='cyclic',
+    max_iter=[10000, 2000], random_state=None, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
-    normalize_Astep=False):
+    normalize_Astep=False, S_tol=1e-6, A_tol=0.1):
         """
-        Linear Model trained with the modified L21 prior as regularizer 
+        Linear Model trained with the modified L21 prior as regularizer
            (aka the Mulitasklasso) and iSDR
            this function implements what is called iSDR (S-step)
            optimization
-            ||y - G A w||^2_2 + l21_ratio * ||w||_21 + 
+            ||y - G A w||^2_2 + l21_ratio * ||w||_21 +
                        la[0] * la[1] * ||A||_1 +
                        0.5 * la[0] * (1 - la[1]) * ||A||^2_2
         Parameters
         ----------
         l21_ratio: scaler, regularization parameter. Has to be > 0 and
         < 100
-        la: list of two elements 
+        la: list of two elements
                        la[0] * la[1] * ||w||_1 +
                    0.5 * la[0] * (1 - la[1]) * ||w||^2_2
             la[0] = 0  no prior on A
@@ -86,12 +86,11 @@ class iSDR():
             iteration rather than looping over features sequentially by
              default.
 
-        verbose: 
+        verbose:
             int/bool flag used to give more details about iSDR procedure
 
         old_version: bool flag to use either eISDR(false) or iSDR (true)
          which can be found in the following papers:
-         
             (1) Brahim Belaoucha, Theodore Papadopoulo. Large brain
             effective network from EEG/MEG data and dMR
             information. PRNI 2017 - 7th International Workshop on
@@ -105,7 +104,7 @@ class iSDR():
             Conference of the IEEE Engineering in Medicine and
             Biology Society (EMBC), Aug 2016, Orlando,
             United States. 2016.
-            
+
         normalize_Sstep: Normalize transfer function in the Sstep
         normalize_Astep: Normalize transfer function in the Astep
 
@@ -116,8 +115,8 @@ class iSDR():
                     activity
         self.xscale: list of (n_active) at each iteration, weights that
                     is used to normalize in Sstep
-        self.weights: list of weights used to normalize Acoef_ in 
-                    self.solver() 
+        self.weights: list of weights used to normalize Acoef_ in
+                    self.solver()
         self.active_set: list number of active regions/sources at each
                          iteration
         self.dual_gap: list contains the dual gap values of MxNE solver
@@ -131,7 +130,6 @@ class iSDR():
         self.la = la
         self.max_iter = max_iter
         self.copy_X = copy_X
-        self.tol = tol
         self.random_state = random_state
         self.selection = selection
         self.verbose = verbose
@@ -143,9 +141,12 @@ class iSDR():
             self.la = [0.0, 0.0]
         self.s_dualgap = []
         self.a_dualgap = []
+        self.A_tol = A_tol
+        self.S_tol = S_tol
 
     def _fit(self, X, y, model_p):
-        """Fit model with coordinate descent.
+        """
+        Fit model with coordinate descent.
             Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
                       l21_ratio * ||w||_21
         Parameters
@@ -155,13 +156,13 @@ class iSDR():
 
         y : (n_samples, n_targets) which represents the EEG/MEG data
         model_p: integer, the order of the assumed multivariate
-                 autoregressive model 
+                 autoregressive model
         model_p: int MVAR model order
 
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
-        
+        n_targets == number of data samples
+
         Returns
         ----------
         self
@@ -199,7 +200,7 @@ class iSDR():
         self.Scoef_, self.dual_gap_, self.eps_, self.n_iter_ = \
             cd_fast.enet_coordinate_descent_iSDR(
                 self.Scoef_, self.l21_ratio, X, y.reshape(-1, order='F'),
-                model_p, self.max_iter[0], self.tol,
+                model_p, self.max_iter[0], self.S_tol,
                 check_random_state(self.random_state), random,
                 self.verbose)
         n, m = n_features//model_p, n_tasks + model_p - 1
@@ -211,7 +212,9 @@ class iSDR():
         return self
 
     def S_step(self, X, y):
-        """Fit model with coordinate descent.
+
+        """
+        Fit model with coordinate descent.
             Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
                       l21_ratio * ||w||_21
         Parameters
@@ -219,23 +222,24 @@ class iSDR():
         X : (n_samples, n_features*self.m_p) which represents the gain matrix
              = GxA, A[A_self.m_p, .., A_1]
         y : (n_samples, n_targets) which represents the EEG/MEG data
-        
+
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
-        self.m_p = MAR model order 
+        n_targets == number of data samples
+        self.m_p = MAR model order
         Returns
         ----------
         self.Scoef_: (n_features, n_targets + model_p - 1)
         """
-        self._fit(X, y, self.m_p)
-        return self.Scoef_ 
+        self._fit(X.astype(np.float32), y.astype(np.float32), self.m_p)
+        return self.Scoef_
 
 
     def A_step(self, X, y, SC, normalize):
+
         """Fit model of MVAR coefficients with either Lasso or Ridge.
         Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
-                      la[0] * la[1] * ||A||_1 + 
+                      la[0] * la[1] * ||A||_1 +
                       0.5 * la[0] * (1 - la[1]) * ||A||_2
 
         Parameters
@@ -245,31 +249,22 @@ class iSDR():
 
         y : (n_samples, n_targets) which represents the EEG/MEG data
 
-        SC: (n_features, n_features), structural connectivity between 
-            brain sources/regions, only coefficients representing 
+        SC: (n_features, n_features), structural connectivity between
+            brain sources/regions, only coefficients representing
             connected regions will be estimated
-            
+
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
-        
+        n_targets == number of data samples
+
         Returns
-        ----------
+        -------
         self.Acoef_: (n_active, n_active*model_p)
         n_active == number of active sources/regions
         """
-        nbr_samples = y.shape[1]
+
         z = self.Scoef_[:, 2*self.m_p:-self.m_p - 1]
         G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
-        if self.la[0] != 0:
-            model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
-            fit_intercept=False, copy_X=True,
-            normalize=self.normalize_Astep,
-            random_state=self.random_state,
-            max_iter=self.max_iter[1])
-        else:
-            model = LinearRegression(fit_intercept=False,
-            normalize=self.normalize_Astep, copy_X=True)
 
         if self.old:
             yt = self.Scoef_[:, 3*self.m_p:-self.m_p]
@@ -277,13 +272,29 @@ class iSDR():
         else:
             yt = y[:, 2*self.m_p+1:-self.m_p]
             yt = yt.reshape(-1, order='F')
+        if len(self.active_set) == 1:
+            self.la_max = np.max(np.abs(np.dot(G.T, yt) / (G.shape[0]*self.la[1])))
+            self.la[0] *= self.la_max*0.01
 
-        model.fit(G, yt)
+        if self.la[0] != 0:
+            model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
+            fit_intercept=False, copy_X=True,
+            normalize=self.normalize_Astep,
+            random_state=self.random_state,
+            max_iter=self.max_iter[1],
+            selection=self.selection,
+            tol=self.A_tol)
+        else:
+            model = LinearRegression(fit_intercept=False,
+            normalize=self.normalize_Astep, copy_X=True)
+
+        model.fit(G.astype(np.float32), yt.astype(np.float32))
+
         if self.la[0] != 0:
             self.a_dualgap.append(None)
         else:
             self.a_dualgap.append(None)
-        A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p)
+        A = np.zeros(SC.shape[0]*SC.shape[0]*self.m_p, dtype=np.float32)
         A[idx] = model.coef_
         n = X.shape[1]
         self.Acoef_ = np.array(A.reshape((n, n*self.m_p), order='C'))
@@ -298,20 +309,22 @@ class iSDR():
 
     def solver(self, G, M, SC, nbr_iter=50, model_p=1,
                A=None, normalize = False, S_tol=1e-3):
-        """ ISDR solver that will iterate between the S-step and A-step
+
+        """
+        ISDR solver that will iterate between the S-step and A-step
         This code solves the following optimization:
-            
+
         argmin(w, A)
-               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 + 
+               ||y - X_A w||^2_2 + l21_ratio * ||w||_21 +
                la[0] * la[1] * ||A||_1 + la[0] * (1-la[1]) * ||A||_2
-        
+
         S-step:
                 argmin(w, A=constant)
                ||y - X_A w||^2_2 + l21_ratio * ||w||_21
-                
+
         A-step:
                 argmin(w=constant, A)
-                ||y - X_A w||^2_2  + la[0] * la[1] * ||A||_1 + 
+                ||y - X_A w||^2_2  + la[0] * la[1] * ||A||_1 +
                 la[0] * (1-la[1]) * ||A||_2
         X_A = G x A, A=[A_p, .., A_1]
         Parameters
@@ -320,18 +333,18 @@ class iSDR():
 
         M : (n_samples, n_targets) which represents the EEG/MEG data
 
-        SC: (n_features, n_features), structural connectivity between 
+        SC: (n_features, n_features), structural connectivity between
             brain sources/regions
         nbr_iter: int number of iteration between S and A step
-        
+
         model_p: int MVAR model order (spatial and temporal effective
         connectivity between brain regions/sources)
-        
+
         A: (n_features, n_features*model_p) an initial MVAR model,
         default None will generate an identity MVAR model at p
         n_samples == number of EEG/MEG sensors
         n_features == number of brain sources
-        n_targets == number of data samples 
+        n_targets == number of data samples
 
         normalize: bool: normalize A row way (divide by max value)
                    before next S step
@@ -341,7 +354,7 @@ class iSDR():
         Attributes
         ----------
         self.Acoef_: (n_active, n_active*model_p) estimated MVAR model
-        self.Scoef_: (n_active, n_targets + model_p - 1) estimated brain 
+        self.Scoef_: (n_active, n_targets + model_p - 1) estimated brain
                     activity
         self.Scoef_: (n_active) weights that was used to normalize self.Acoef_
         self.active_set: list number of active regions/sources at each
@@ -349,17 +362,19 @@ class iSDR():
         self.dual_gap: list containing the dual gap values of MxNE solver
                        at each iteration
         self.mxne_iter: list containing the number of iteration until
-                        convergence for MxNE solver 
-        
+                        convergence for MxNE solver
+
         n_active == number of active sources/regions
         """
         self.time = - time.time()
         self.Morig = M.copy()
         self.Gorig = G.copy()
+        self.normalize = normalize
+        self.nbr_iter = nbr_iter
         Gtmp, Mtmp, SCtmp = G.copy(), M.copy(), SC.astype(int).copy()
         if model_p < 1:
             raise ValueError("Wrong value for MVAR model =%s should be > 0."%model_p)
-        self.n_sensor, self.n_source = Gtmp.shape 
+        self.n_sensor, self.n_source = Gtmp.shape
         if A is None:
             A = np.zeros((self.n_source, self.n_source*model_p))
             A[:, -self.n_source:] = np.eye(self.n_source)
@@ -367,13 +382,14 @@ class iSDR():
         alpha_max = utils.Compute_alpha_max(np.dot(Gtmp, A), Mtmp, model_p)
         alpha_max *= 0.01;
         self.l21_ratio *= alpha_max;
+        self.alpha_max = alpha_max
         active_regions = np.arange(self.n_source)
         self.active_set = []
         self.dual_gap = []
         self.mxne_iter = []
         nbr_orig = Gtmp.shape[1]
         self.m_p = model_p
-        S_tol *= np.linalg.norm(np.dot(np.linalg.pinv(Gtmp), Mtmp))/Mtmp.shape[1]
+        S_tol = self.S_tol * np.linalg.norm(np.dot(np.linalg.pinv(Gtmp), Mtmp))/Mtmp.shape[1]
         previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
         for i in range(nbr_iter):
             GAtmp = np.dot(Gtmp, A)
@@ -405,7 +421,7 @@ class iSDR():
                 break
 
             previous_j = self.Scoef_.copy()
-            A, weights = self.A_step(Gtmp, Mtmp, SCtmp, normalize=normalize)
+            A, _ = self.A_step(Gtmp, Mtmp, SCtmp, normalize=self.normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
             if t < S_tol:
@@ -415,8 +431,10 @@ class iSDR():
                 break
 
     def _reorder_A(self):
-        """ this function reorder the MVAR model matrix so that it can
-            be used to construct PHI which can be used to compute 
+
+        """
+        this function reorder the MVAR model matrix so that it can
+            be used to construct PHI which can be used to compute
             dynamics (eigenvalues)
             
             before:
@@ -439,10 +457,11 @@ class iSDR():
         return A
 
     def get_phi(self):
-        """ this function constructs PHI companion matrix which controls
+        """
+         constructs PHI companion matrix which controls
             the dynamics
             of brain activation
-            Phi:  
+            Phi:
                   A_1  A_2 . . . .   A_p
                    I    0             0
                    0    I             0
@@ -474,8 +493,9 @@ class iSDR():
 
     def plot_effective(self, fmt='.3f', annot=True, cmap=None,
                        fig_size = 5, mask_flag=True):
-        """Plotting function
-        Plots the effective connectivity 
+        """
+        Plotting function
+        Plots the effective connectivity
         """
         if not hasattr(self, 'Acoef_'):
             if self.verbose:
@@ -502,15 +522,16 @@ class iSDR():
                 r = Rectangle((k, 0), n - 0.01, n - 0.01, fill=False, lw=3)
                 g.add_patch(r)
                 plt.text(i * n + n // 2, n + 0.5, r'$A_{}$'.format(m // n - i), fontsize=14, weight="bold")
-
+            plt.tight_layout()
         else:
             if self.verbose:
                 print('No active source is detected')
 
 
     def bias_correction(self):
+
         """
-        this function is used to corrected the magnitude of the 
+        this function is used to corrected the magnitude of the
         reconstructed brain activity by solving the following:
                   min sum_t ||y_t - Gr sum_i(Ar_i Jr_{t-i})||^2_2
         where Jr: is the magnitude of the reduced source space
@@ -531,9 +552,16 @@ class iSDR():
             Z = linalg.lsmr(Gbig, self.Morig.reshape(-1, order='F'), atol=1e-12, btol=1e-12)
             self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
 
-
-
-
+    def get_params(self):
+        params = dict(l21_ratio=self.l21_ratio/self.alpha_max,
+                      la=[self.la[0]/(self.la_max*0.01), self.la[1]],
+                      copy_X=self.copy_X, max_iter=self.max_iter,
+                      random_state=self.random_state,selection=self.selection,
+                      verbose=self.verbose, old_version=self.old,
+                      normalize_Sstep=self.normalize_Sstep,
+                      normalize_Astep=self.normalize_Astep, mar_model=self.m_p,
+                      nbr_iter=self.nbr_iter, S_tol=self.S_tol, A_tol=self.A_tol)
+        return params
 
 
 class iSDRcv():
@@ -543,17 +571,17 @@ class iSDRcv():
                  verbose=False,old_version=False,
                  normalize_Astep=[0],normalize_Sstep=[0], cv=None):
         """
-        This function is used to run cross-validation with grid run of 
-        all combination of parameters and hyper-parameters and return 
+        This function is used to run cross-validation with grid run of
+        all combination of parameters and hyper-parameters and return
         the cost function for all of them
-        
+
         Parameters
         ----------
                 model_p: list of tried MAR order
                 l21_values: list of l21 norm reg parameters for Sstep
                 la_values: list of l1 norm reg parameter for Astep
                 la_ratio_values: list of l1/2 ratio for Astep
-                normalize: can be [0, 1] to normalize or not A before 
+                normalize: can be [0, 1] to normalize or not A before
                            Step
                 max_run: used to limit the number of grid search run
                          default is None== all of grid will be run
@@ -635,8 +663,8 @@ class iSDRcv():
             dump(A, self.foldername+'/A.dat')
         #################################
         self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = [], [], [], [], [], []
+        self.la = []
         df = {}
-        test_data = []
         if self.cv is None:
             par_func = utils._run
         else:
@@ -663,10 +691,10 @@ class iSDRcv():
                 out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
                 if self.cv is None:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la = zip(*out)
                     runid = []
                 else:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, runid = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, runid = zip(*out)
             else:
                 runid = []
                 for i in tqdm(range(len(self.all_comb))):
@@ -677,9 +705,10 @@ class iSDRcv():
                     self.l1a_l1norm.append(x[3])
                     self.l1a_l2norm.append(x[4])
                     self.l21_ratio.append(x[5])
+                    self.la.append(x[6])
                     if not self.cv is None:
-                        runid.append(x[6])
-                    
+                        runid.append(x[-1])
+
             if len(self.rms):
                 self.all_comb = np.array(self.all_comb)
                 if not len(runid):
@@ -693,6 +722,7 @@ class iSDRcv():
                     'ls_reg':self.all_comb[:, 0].astype(float),
                     'la_reg_a':self.all_comb[:, 1].astype(float),
                     'la_reg_r': self.all_comb[:, 2].astype(float),
+                    'la':np.array(self.la).astype(float),
                     'p':self.all_comb[:, 3].astype(int),
                     'normalize':self.all_comb[:, 4].astype(int),
                     'l21_real':np.array(self.l21_ratio),
@@ -703,13 +733,13 @@ class iSDRcv():
                 df = pd.DataFrame(df)
                 df = df.groupby('runidx').mean()
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
-                df.A_prior_l1*df.la_reg_a*df.la_reg_r +\
-                            df.A_prior_l2*df.la_reg_a*(0.5-0.5*df.la_reg_r)
+                df.A_prior_l1*df.la*df.la_reg_r +\
+                            df.A_prior_l2*df.la*(0.5-0.5*df.la_reg_r)
                 self.time += time.time()
         except Exception as e:
             print(e)
             print(traceback.print_exc())
-            pass
+
         ###################################
         self._delete()
         self.results = df
@@ -724,43 +754,39 @@ class iSDRcv():
         utils.deletefolder(self.foldername)
 
 
-
 class eiSDR_cv():
-    """
-    This function run grid search cross validation and return the optimal values
-    :return:
-    row of the dataframe correspending to the minimum eISDR functional values
-    
-    
-    Parameters:
-    -----------
-        model_p: list of tried MAR order
-        l21_values: list of l21 norm reg parameters for Sstep
-        la_values: list of l1 norm reg parameter for Astep
-        la_ratio_values: list of l1/2 ratio for Astep
-        normalize: can be [0, 1] to normalize or not A before 
-                           Step
-        max_run: used to limit the number of grid search run
-                         default is None== all of grid will be run
-        seed: random seed used to randomize the search grid,
-                      will be used when max_run is used
-        parallel: flag to run cv in parallel or not
-        tmp: location to folder used to save intermediate result
-        verbose: flag to print intermediate results or not
-        old_version: flag to use or not old version of iSDR
-        normalize_Astep: list of values to normalize or not the
-                               transfer function in Astep
-        normalize_Sstep: list of values to normalize or not the
-                               transfer function in Sstep
-    Attributes:
-        self.opt = dataframe containing the smallest cost function values
-                               
-    """
     def __init__(self, l21_values=[1e-3], la_values=[1e-3],
     la_ratio_values=[1], normalize=[0], model_p=[1], verbose=False,
     max_run=None, old_version=False, parallel=True,
     normalize_Astep=[0], normalize_Sstep = [0]):
+        """
+        This function run grid search cross validation and return the optimal values
+        Parameters
+        -----------
+            model_p: list of tried MAR order
+            l21_values: list of l21 norm reg parameters for Sstep
+            la_values: list of l1 norm reg parameter for Astep
+            la_ratio_values: list of l1/2 ratio for Astep
+            normalize: can be [0, 1] to normalize or not A before
+                               Step
+            max_run: used to limit the number of grid search run
+                             default is None== all of grid will be run
+            seed: random seed used to randomize the search grid,
+                          will be used when max_run is used
+            parallel: flag to run cv in parallel or not
+            tmp: location to folder used to save intermediate result
+            verbose: flag to print intermediate results or not
+            old_version: flag to use or not old version of iSDR
+            normalize_Astep: list of values to normalize or not the
+                                   transfer function in Astep
+            normalize_Sstep: list of values to normalize or not the
+                                   transfer function in Sstep
+        Attributes:
+            self.opt = dataframe containing the smallest cost function values
+        return:
+            row of the dataframe correspending to the minimum eISDR functional values
 
+        """
         if not hasattr(l21_values, "__len__"):
             l21_values = [l21_values]
 
@@ -821,7 +847,7 @@ class eiSDR_cv():
             if self.verbose:
                 print('can not find results, check iSDRcv')
         return []
-        
+
     def save(self, filename):
         if hasattr(self, 'results'):
             self.results.to_csv(filename)

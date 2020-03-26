@@ -165,6 +165,7 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
         if verbose:
             warnings.warn("Coordinate descent with alpha=0 may lead to unexpected"
                 " results and is discouraged.")
+
     for jj in range(n_s):
         s = 0.0
         for ii in range(m_p):

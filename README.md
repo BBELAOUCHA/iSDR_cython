@@ -42,6 +42,14 @@ scipy~=1.4
 
 scikit-learn~=0.22
 
+joblib>=0.14.1
+
+pandas>=1.0.1
+
+cython>=0.29
+
+seaborn
+
 ## Installation
 
 pip3 install .

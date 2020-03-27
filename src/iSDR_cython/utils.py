@@ -196,7 +196,9 @@ def _run(args):
     n = 0
     l21s = 0
     l1a_l1norm,  l1a_l2norm= 0, 0
+    n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+        n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
         Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
         x = min(Mx.shape[1], M.shape[1])
@@ -206,7 +208,7 @@ def _run(args):
         l1a_l1norm = np.sum(np.abs(cl.Acoef_))
         l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
 
-    return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0]
+    return rms/(n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0], n_a_coef
 
 
 def _runCV(args):
@@ -265,7 +267,9 @@ def _runCV(args):
     cl.solver(gtmp, mtmp, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
     R = cl.Scoef_.copy()
     l21_ratio = cl.l21_ratio
+    n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+        n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
         nbr = n
         Mx = M[test_data, :].copy()
@@ -291,5 +295,21 @@ def _runCV(args):
         l21s = 0
         l1a_l1norm = 0
         l1a_l2norm = 0
-    rms = rms/(2*n_t*len(test_data))
-    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], run_ix
+    rms = rms/(n_t*len(test_data))
+    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], n_a_coef, run_ix
+
+def compute_criterion(M, results, criterion='bic', include_S=1):
+    sigma2 = np.var(M)
+    n_c, n_t = M.shape
+    n_samples = n_c * n_t
+    if criterion == 'aic':
+        K = 2  # AIC
+    elif criterion == 'bic':
+        K = np.log(n_samples)  # BIC
+    else:
+        raise ValueError("Wrong value for criterion: %s" %criterion)
+    mean_squared_error = results.rms
+    df = results['nbr_coef'] + include_S * results['nbr']
+    criterion_ = ((n_samples * mean_squared_error) / sigma2 + K * df)
+    results[criterion] = criterion_ / n_samples
+    return results

@@ -428,6 +428,7 @@ class iSDR():
                 if self.verbose:
                     print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i+1, S_tol, t))
                 self.time += time.time()
+
                 break
 
     def _reorder_A(self):
@@ -569,7 +570,7 @@ class iSDRcv():
                  la_ratio_values=[1], normalize =[0],
                  max_run = None, seed=2020, parallel=True, tmp='/tmp',
                  verbose=False,old_version=False,
-                 normalize_Astep=[0],normalize_Sstep=[0], cv=None):
+                 normalize_Astep=[0],normalize_Sstep=[0], cv=None,criterion='bic'):
         """
         This function is used to run cross-validation with grid run of
         all combination of parameters and hyper-parameters and return
@@ -652,6 +653,8 @@ class iSDRcv():
         self.time = None
         self.cv = cv
         self.seed = seed
+        self.criterion = criterion
+
     def run(self, G, M, SC, A=None):
         self.time = -time.time()
         if not os.path.exists(self.foldername):
@@ -664,6 +667,7 @@ class iSDRcv():
         #################################
         self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = [], [], [], [], [], []
         self.la = []
+        self.nbr_coef = []
         df = {}
         if self.cv is None:
             par_func = utils._run
@@ -691,10 +695,10 @@ class iSDRcv():
                 out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 pool.terminate()
                 if self.cv is None:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef = zip(*out)
                     runid = []
                 else:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, runid = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef, runid = zip(*out)
             else:
                 runid = []
                 for i in tqdm(range(len(self.all_comb))):
@@ -706,6 +710,7 @@ class iSDRcv():
                     self.l1a_l2norm.append(x[4])
                     self.l21_ratio.append(x[5])
                     self.la.append(x[6])
+                    self.nbr_coef.apppend(x[7])
                     if not self.cv is None:
                         runid.append(x[-1])
 
@@ -728,13 +733,15 @@ class iSDRcv():
                     'l21_real':np.array(self.l21_ratio),
                     'normalize_Astep':self.all_comb[:, 7].astype(int),
                     'normalize_Sstep':self.all_comb[:, 8].astype(int),
-                    'runidx': runid
+                    'runidx': runid,
+                    'nbr_coef':np.array(self.nbr_coef)
                 }
                 df = pd.DataFrame(df)
                 df = df.groupby('runidx').mean()
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
                 df.A_prior_l1*df.la*df.la_reg_r +\
                             df.A_prior_l2*df.la*(0.5-0.5*df.la_reg_r)
+                df = utils.compute_criterion(M, df, criterion=self.criterion, include_S=0)
                 self.time += time.time()
         except Exception as e:
             print(e)

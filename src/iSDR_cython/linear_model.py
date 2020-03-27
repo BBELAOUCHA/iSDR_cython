@@ -710,7 +710,7 @@ class iSDRcv():
                     self.l1a_l2norm.append(x[4])
                     self.l21_ratio.append(x[5])
                     self.la.append(x[6])
-                    self.nbr_coef.apppend(x[7])
+                    self.nbr_coef.append(x[7])
                     if not self.cv is None:
                         runid.append(x[-1])
 

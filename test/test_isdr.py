@@ -298,3 +298,64 @@ def test_getparameters():
         if res[i] != v:
             return False
     return True
+
+
+def test_wrongvalue():
+    n_t = 200
+    n_c, n_s = 3, 3
+    np.random.seed(40)
+    G = np.abs(np.random.normal(0, 1, (n_c, n_s)))
+    J = np.zeros((n_s, n_t))
+    J[:3, 0] = [10, 0.1, 0]
+    A = np.array([[0.9, -0.4, 0], [0.25, 0.97, 0], [0.5, 0, 0.5]])
+    for i in range(J.shape[-1] - 1):
+        J[:3, i + 1] = np.dot(A, J[:3, i])
+    SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
+    m_p = 1
+    M = np.dot(G, J[:, m_p:])
+    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0, old_version=0,
+                                 normalize_Sstep=False, normalize_Astep=False)
+    try:
+        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 100], verbose=0, old_version=0,
+                                     normalize_Sstep=False, normalize_Astep=False)
+        t1 = False
+    except ValueError:
+        t1 = True
+
+    try:
+        cl = ciSDR.linear_model.iSDR(l21_ratio=200, la=[0.1, 0.5], verbose=0, old_version=0,
+                                     normalize_Sstep=False, normalize_Astep=False)
+        t2 = False
+    except ValueError:
+        t2 = True
+    try:
+        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[200, 0.5], verbose=0, old_version=0,
+                                     normalize_Sstep=False, normalize_Astep=False)
+        t3 = False
+    except ValueError:
+        t3 = True
+
+    try:
+        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, -10], verbose=0, old_version=0,
+                                     normalize_Sstep=False, normalize_Astep=False)
+        t4 = False
+    except ValueError:
+        t4 = True
+
+    try:
+        cl = ciSDR.linear_model.iSDR(l21_ratio=-20, la=[0.1, 0.5], verbose=0, old_version=0,
+                                     normalize_Sstep=False, normalize_Astep=False)
+        t5 = False
+    except ValueError:
+        t5 = True
+    try:
+        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[-20, 0.5], verbose=0, old_version=0,
+                                     normalize_Sstep=False, normalize_Astep=False)
+        t6 = False
+    except ValueError:
+        t6 = True
+
+    if t1 and t2 and t3 and t4 and t5 and t6:
+        return True
+    else:
+        return False

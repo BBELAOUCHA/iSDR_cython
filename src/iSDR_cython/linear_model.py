@@ -143,6 +143,12 @@ class iSDR():
         self.a_dualgap = []
         self.A_tol = A_tol
         self.S_tol = S_tol
+        if np.abs(self.la[1] - 1) <= 1 or self.la[1] <0:
+            raise ValueError("Wrong value %s should be [0, 1]" % self.la[1])
+        if np.abs(self.la[0] - 100) <= 100 or self.la[0]<0:
+            raise ValueError("Wrong value %s should be )0, 100(" % self.la[0])
+        if np.abs(l21_ratio - 100) <= 100 or l21_ratio<0:
+            raise ValueError("Wrong value %s should be )0, 100(" % l21_ratio)
 
     def _fit(self, X, y, model_p):
         """

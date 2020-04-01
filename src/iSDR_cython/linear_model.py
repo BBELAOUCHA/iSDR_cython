@@ -279,8 +279,11 @@ class iSDR():
             yt = y[:, 2*self.m_p+1:-self.m_p]
             yt = yt.reshape(-1, order='F')
         if len(self.active_set) == 1:
-            self.la_max = np.max(np.abs(np.dot(G.T, yt) / (G.shape[0]*self.la[1])))
-            self.la[0] *= self.la_max*0.01
+            if self.la[1] > 0:
+                self.la_max = np.max(np.abs(np.dot(G.T, yt) / (G.shape[0]*self.la[1])))
+                self.la[0] *= self.la_max*0.01
+            else:
+                self.la_max = None
 
         if self.la[0] != 0:
             model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],

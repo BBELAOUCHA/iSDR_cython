@@ -35,6 +35,15 @@ iSDR_cython is a Cython package for solving the EEG/MEG inverse problem using st
 It implements the inverse solver iSDR (check Cite section for more details), It worth noting here that this implementation is a bit different from the original 
 paper since now we are assuming a prior on the Multivariate Autoregressive Model coefficients
 
+## Examples
+
+```python
+from iSDR_cython import iSDR
+model = iSDR(l21_reg=alpha)
+model.solver(G, M, SC, model_p=3)
+
+```
+
 ## Requirements
 numpy~=1.6
 

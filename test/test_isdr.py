@@ -17,7 +17,7 @@ def test_activeset():
     SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3)
 
     activeset = np.sort(cl.active_set[-1])
@@ -46,7 +46,7 @@ def test_norm():
     SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=1)
 
     activeset = np.sort(cl.active_set[-1])
@@ -104,7 +104,7 @@ def test_getphi():
     SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=1)
     t1 = not hasattr(cl, 'eigs')
     cl.get_phi()

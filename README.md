@@ -16,6 +16,8 @@ paper since now we are assuming a prior on the Multivariate Autoregressive Model
 
 ### iSDR
 
+<img src="https://latex.codecogs.com/png.latex?%5Cinline%20%5Cleft%5C%7B%5Cbegin%7Bmatrix%7D%20U%28J%29%26%20%3D%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%5C%7CJ%5C%7C%5Cright_%7B21%7D%5E2%5C%5C%20V%28A%29%26%20%3D%5Cleft%20%5C%7CJ_v%20-%20JJA_v%5C%7C%5Cright_2%5E2%5C%5C%20%5Cend%7Bmatrix%7D%5Cright." title="\left\{\begin{matrix} U(J)& =\left \|M_v - G_dJ_v\|\right_2^2\\ V(A)& =\left \|J_v - JJA_v\|\right_2^2\\ \end{matrix}\right." />
+
 ```python
 from iSDR_cython import iSDR
 model = iSDR(l21_reg=lambda_)
@@ -24,7 +26,7 @@ model.solver(G, M, SC, model_p=3)
 ```
 ### eiSDR
 
-<img src="https://latex.codecogs.com/gif.latex?U%28J%2C%20A%29%20%3D%20%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7CJ%5C%7C%5Cright_%7B21%7D%20&plus;%20%5Calpha%5Cbeta%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B1%7D%20&plus;%20%5Calpha%281-%5Cbeta%29%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B2%7D" title=" U(J, A) = \left    \|M_v - G_dJ_v\|\right_2^2 + \lambda \left    \|J\|\right_{21}  + \alpha\beta \left    \|S_cA_v\|\right_{1} + \alpha(1-\beta) \left    \|S_cA_v\|\right_{2}"/>
+<img src="https://latex.codecogs.com/gif.latex?U%28J%2C%20A%29%20%3D%20%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7CJ%5C%7C%5Cright_%7B21%7D%20&plus;%20%5Calpha%5Cbeta%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B1%7D%20&plus;%20%5Calpha%281-%5Cbeta%29%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B2%7D" title=" U(J, A) = \left    \|M_v - G_dJ_v\|\right_2^2 + \lambda \left    \|J\|\right_{21}  + \alpha\beta \left    \|S_cA_v\|\right_{1} + \alpha(1-\beta) \left    \|S_cA_v\|\right_{2}^2"/>
 
 Where: 
 

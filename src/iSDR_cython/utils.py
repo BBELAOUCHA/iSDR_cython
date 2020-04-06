@@ -49,9 +49,9 @@ def construct_J(G, SC, J, m_p, old=False):
     idx = SCx > 0
     if old:
         n_m = n_s
-
-    data_big = np.zeros(((n_t-m_p+1)*n_m, np.sum(idx)), dtype=np.float)
-    for t in range(n_t-m_p+1):
+    m = n_t-m_p+1
+    data_big = np.zeros((m*n_m, np.sum(idx)), dtype=np.float)
+    for t in range(m):
         data_x = _constructJt(J[:, t:t+m_p])[:, idx]
         if not old:
             data_x = np.dot(G, data_x)
@@ -187,8 +187,12 @@ def _run(args):
     else:
         A = None
     m_p = int(float(m_p))
-    cl = linear_model.iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(o_v),
-              normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    if int(o_v):
+        cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    else:
+        cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
     cl.solver(G, M, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
     R = cl.Scoef_.copy()
     n_c, n_t = M.shape
@@ -260,8 +264,11 @@ def _runCV(args):
     l1a_l2norm = 0
     l21_ratio = 0
     train_data = np.array([j for j in range(n_c) if not j in test_data])
-    cl = linear_model.iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(o_v),
-                  normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    if int(o_v):
+        cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    else:
+        cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
     gtmp = G[train_data, :]
     mtmp = M[train_data, :]
     cl.solver(gtmp, mtmp, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))

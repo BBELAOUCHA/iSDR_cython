@@ -39,11 +39,11 @@ from . import utils
 =======================================================================
 """
 
-class iSDR():
+class iSDRcore(object):
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
     max_iter=[10000, 2000], random_state=None, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
-    normalize_Astep=False, S_tol=1e-6, A_tol=0.1):
+    normalize_Astep=False, S_tol=1e-6, A_tol=0.1, includeMNE=False):
         """
         Linear Model trained with the modified L21 prior as regularizer
            (aka the Mulitasklasso) and iSDR
@@ -143,6 +143,7 @@ class iSDR():
         self.a_dualgap = []
         self.A_tol = A_tol
         self.S_tol = S_tol
+        self.includeMNE = includeMNE
         if np.abs(self.la[1] - 1) > 1 or self.la[1] < 0:
             raise ValueError("Wrong value %s should be [0, 1]" % self.la[1])
         if np.abs(self.la[0] - 100) > 100 or self.la[0]<0:
@@ -150,7 +151,72 @@ class iSDR():
         if np.abs(l21_ratio - 100) > 100 or l21_ratio<0:
             raise ValueError("Wrong value %s should be )0, 100(" % l21_ratio)
 
-    def _fit(self, X, y, model_p):
+    def _fit(self, X, y):
+        """
+        Fit model with coordinate descent.
+            Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
+                      l21_ratio * ||w||_21
+        Parameters
+        ----------
+        X : (n_samples, n_features*model_p) which represents the
+        gain matrix muliplied by MAR model of order model_p
+
+        y : (n_samples, n_targets) which represents the EEG/MEG data
+        model_p: integer, the order of the assumed multivariate
+                 autoregressive model
+        model_p: int MVAR model order
+
+        n_samples == number of EEG/MEG sensors
+        n_features == number of brain sources
+        n_targets == number of data samples
+
+        Returns
+        ----------
+        self
+        if you wanna get the brain activation please run .S_step
+        """
+        X = check_array(X, dtype=[np.float64, np.float32], order='F',
+                        copy=self.copy_X and False)
+        y = check_array(y, dtype=X.dtype.type, ensure_2d=False)
+        if y.ndim == 1:
+            raise ValueError("More than %s is needed" % self.m_p)
+
+        n_samples, n_features = X.shape
+        n_tasks = y.shape[1]
+        self.xscale = np.ones((self.n_source, 1))
+        if self.normalize_Sstep:
+            for i in range(self.n_source):
+                v = np.std(X[:, i::self.n_source])
+                if v > 0:
+                    self.xscale[i] = v
+                    X[:, i::self.n_source] /= v
+        if n_samples != y.shape[0]:
+            raise ValueError("X and y have inconsistent dimensions (%d != %d)"
+                             % (n_samples, y.shape[0]))
+        self.Scoef_ = np.zeros((n_tasks + self.m_p - 1) * n_features//self.m_p,
+            dtype=X.dtype.type, order='F')
+
+        self.Scoef_ = np.asfortranarray(self.Scoef_)  # coef contiguous in memory
+
+        if self.selection not in ['random', 'cyclic']:
+            raise ValueError("selection should be either random or cyclic.")
+        random = (self.selection == 'random')
+
+        self.Scoef_, self.dual_gap_, self.eps_, self.n_iter_ = \
+                cd_fast.enet_coordinate_descent_iSDR(
+                    self.Scoef_, self.l21_ratio, X, y.reshape(-1, order='F'),
+                    self.m_p, self.max_iter[0], self.S_tol,
+                    check_random_state(self.random_state), random,
+                    self.verbose)
+
+        n, m = n_features//self.m_p, n_tasks + self.m_p - 1
+        self.Scoef_ = self.Scoef_.reshape((n, m), order='F')
+        if self.normalize_Sstep:
+            self.Scoef_ = self.Scoef_/ self.xscale
+        self.s_dualgap.append(self.dual_gap_)
+        return self
+
+    def _fitmne(self, G, X, y):
         """
         Fit model with coordinate descent.
             Sum_t=1^T(||y_t - G sum_i(A_i w_{t-i})||^2_2) +
@@ -178,46 +244,37 @@ class iSDR():
                         copy=self.copy_X and False)
         y = check_array(y, dtype=X.dtype.type, ensure_2d=False)
 
+        G = check_array(G, dtype=[np.float64, np.float32], order='F',
+                        copy=True)
         if y.ndim == 1:
-            raise ValueError("More than %s is needed" % model_p)
+            raise ValueError("More than %s is needed" % self.m_p)
 
         n_samples, n_features = X.shape
         n_tasks = y.shape[1]
         self.xscale = np.ones((self.n_source, 1))
-        if self.normalize_Sstep:
-            for i in range(self.n_source):
-                v = np.std(X[:, i::self.n_source])
-                if v > 0:
-                    self.xscale[i] = v
-                    X[:, i::self.n_source] /= v
-
         if n_samples != y.shape[0]:
             raise ValueError("X and y have inconsistent dimensions (%d != %d)"
                              % (n_samples, y.shape[0]))
-        self.Scoef_ = np.zeros((n_tasks + model_p - 1) * n_features//model_p,
-        dtype=X.dtype.type, order='F')
+        Scoef_ = np.zeros((n_tasks - 1) * n_features // self.m_p,
+                          dtype=X.dtype.type, order='F')
 
-        self.Scoef_ = np.asfortranarray(self.Scoef_)  # coef contiguous in memory
+        Scoef_ = np.asfortranarray(Scoef_)  # coef contiguous in memory
 
         if self.selection not in ['random', 'cyclic']:
             raise ValueError("selection should be either random or cyclic.")
         random = (self.selection == 'random')
 
-        self.Scoef_, self.dual_gap_, self.eps_, self.n_iter_ = \
-            cd_fast.enet_coordinate_descent_iSDR(
-                self.Scoef_, self.l21_ratio, X, y.reshape(-1, order='F'),
-                model_p, self.max_iter[0], self.S_tol,
-                check_random_state(self.random_state), random,
-                self.verbose)
-        n, m = n_features//model_p, n_tasks + model_p - 1
-        self.Scoef_ = self.Scoef_.reshape((n, m), order='F')
-        if self.normalize_Sstep:
-            self.Scoef_ = self.Scoef_/ self.xscale
+        Scoef_, self.dual_gap_, self.eps_,  self.n_iter_ = \
+            cd_fast.cd_mneiSDR(
+                Scoef_, self.l21_ratio, X, G, y.reshape(-1, order='F'),
+                    self.m_p, self.max_iter[0], self.S_tol,
+                    check_random_state(self.random_state), random,
+                    self.verbose)
+        n, m = n_features // self.m_p, n_tasks - 1
+        self.Scoef_ = Scoef_.reshape((n, m), order='F')
 
-        self.s_dualgap.append(self.dual_gap_)
-        return self
 
-    def S_step(self, X, y):
+    def S_step(self, X, y, G):
 
         """
         Fit model with coordinate descent.
@@ -237,8 +294,11 @@ class iSDR():
         ----------
         self.Scoef_: (n_features, n_targets + model_p - 1)
         """
-        self._fit(X, y, self.m_p)
-        return self.Scoef_
+        if not self.includeMNE:
+            self._fit(X, y)
+        else:
+            self._fitmne(G, X, y)
+
 
 
     def A_step(self, X, y, SC, normalize):
@@ -268,22 +328,27 @@ class iSDR():
         self.Acoef_: (n_active, n_active*model_p)
         n_active == number of active sources/regions
         """
+        if self.includeMNE:
+            zx = self.Scoef_[:, self.m_p:].copy()
+            yx = y[:, 2*self.m_p:]
+        else:
+            zx = self.Scoef_.copy()
+            yx = y.copy()
 
-        z = self.Scoef_[:, 2*self.m_p:-self.m_p - 1]
+        z = zx[:, 2*self.m_p:-self.m_p - 1]
         G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
-
         if self.old:
-            yt = self.Scoef_[:, 3*self.m_p:-self.m_p]
+            yt = zx[:, 3*self.m_p:-self.m_p]
             yt = yt.reshape(-1, order='F')
         else:
-            yt = y[:, 2*self.m_p+1:-self.m_p]
+            yt = yx[:, 2*self.m_p+1:-self.m_p]
             yt = yt.reshape(-1, order='F')
         if len(self.active_set) == 1:
             if self.la[1] > 0:
                 self.la_max = np.max(np.abs(np.dot(G.T, yt) / (G.shape[0]*self.la[1])))
                 self.la[0] *= self.la_max*0.01
             else:
-                self.la_max = None
+                self.la_max = 100
 
         if self.la[0] != 0:
             model = ElasticNet(alpha=self.la[0], l1_ratio=self.la[1],
@@ -298,7 +363,8 @@ class iSDR():
             normalize=self.normalize_Astep, copy_X=True)
 
         model.fit(G, yt)
-
+        self.gg= G
+        self.yy = yt
         if self.la[0] != 0:
             self.a_dualgap.append(None)
         else:
@@ -399,10 +465,13 @@ class iSDR():
         nbr_orig = Gtmp.shape[1]
         self.m_p = model_p
         S_tol = self.S_tol * np.linalg.norm(np.dot(np.linalg.pinv(Gtmp), Mtmp))/Mtmp.shape[1]
-        previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
+        if self.includeMNE:
+            previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1]  - 1))
+        else:
+            previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
         for i in range(nbr_iter):
             GAtmp = np.dot(Gtmp, A)
-            self.S_step(GAtmp, Mtmp)
+            self.S_step(GAtmp, Mtmp, Gtmp)
             idx = np.std(self.Scoef_, axis=1) > 0
             active_regions = active_regions[idx]
             self.active_set.append(active_regions)
@@ -573,6 +642,59 @@ class iSDR():
                       nbr_iter=self.nbr_iter, S_tol=self.S_tol, A_tol=self.A_tol)
         return params
 
+
+class iSDR(iSDRcore):
+    def __init__(self, l21_ratio=1.0, copy_X=True,
+                 max_iter=[10000, 2000], random_state=None, selection='cyclic',
+                 verbose=0, normalize_Sstep=False, normalize_Astep=False,
+                 S_tol=1e-6, A_tol=0.1):
+        super().__init__(
+            l21_ratio=l21_ratio, la=[0.0, 1], copy_X=copy_X, max_iter=max_iter,
+            random_state=random_state, selection=selection, verbose=verbose,
+            old_version=True, normalize_Sstep=normalize_Sstep,
+            normalize_Astep=normalize_Astep, S_tol=S_tol, A_tol=A_tol,
+            includeMNE=False)
+
+
+class iSDRmne(iSDRcore):
+    def __init__(self, l21_ratio=1.0, copy_X=True,
+                 max_iter=[10000, 2000], random_state=None, selection='cyclic',
+                 verbose=0, normalize_Sstep=False, normalize_Astep=False,
+                 S_tol=1e-6, A_tol=0.1):
+        super().__init__(
+            l21_ratio=l21_ratio, la=[0.0, 1], copy_X=copy_X, max_iter=max_iter,
+            random_state=random_state, selection=selection, verbose=verbose,
+            old_version=True, normalize_Sstep=normalize_Sstep,
+            normalize_Astep=normalize_Astep,
+            S_tol=S_tol, A_tol=A_tol, includeMNE=True)
+
+
+class eiSDR(iSDRcore):
+    def __init__(self, l21_ratio=1.0, la=[0.0, 1], copy_X=True,
+                 max_iter=[10000, 2000], random_state=None, selection='cyclic',
+                 verbose=0, normalize_Sstep=False, normalize_Astep=False,
+                 S_tol=1e-6, A_tol=0.1):
+        super().__init__(
+            l21_ratio=l21_ratio, la=la, copy_X=copy_X, max_iter=max_iter,
+            random_state=random_state, selection=selection, verbose=verbose,
+            old_version=False, normalize_Sstep=normalize_Sstep,
+            normalize_Astep=normalize_Astep, S_tol=S_tol,
+            A_tol=A_tol,
+            includeMNE=False)
+
+
+class eiSDRmne(iSDRcore):
+    def __init__(self, l21_ratio=1.0, la=[0.0, 1], copy_X=True,
+                 max_iter=[10000, 2000], random_state=None, selection='cyclic',
+                 verbose=0, normalize_Sstep=False, normalize_Astep=False,
+                 S_tol=1e-6, A_tol=0.1):
+        super().__init__(
+            l21_ratio=l21_ratio, la=la, copy_X=copy_X, max_iter=max_iter,
+            random_state=random_state, selection=selection, verbose=verbose,
+            old_version=False, normalize_Sstep=normalize_Sstep,
+            normalize_Astep=normalize_Astep, S_tol=S_tol,
+            A_tol=A_tol,
+            includeMNE=True)
 
 class iSDRcv():
     def __init__(self, model_p=[1], l21_values=[], la_values = [],
@@ -869,3 +991,5 @@ class eiSDR_cv():
             self.results.to_csv(filename)
         else:
             print('can not find results, run get_opt before saving the results')
+
+

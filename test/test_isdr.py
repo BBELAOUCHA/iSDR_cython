@@ -17,7 +17,7 @@ def test_activeset():
     SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3)
 
     activeset = np.sort(cl.active_set[-1])
@@ -46,7 +46,7 @@ def test_norm():
     SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=1)
 
     activeset = np.sort(cl.active_set[-1])
@@ -104,7 +104,7 @@ def test_getphi():
     SC = np.array([[1,1,1], [1,1,0],[1,0,1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0, old_version=0)
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.001, la=[1e-2, 0.5], verbose=0)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=1)
     t1 = not hasattr(cl, 'eigs')
     cl.get_phi()
@@ -290,7 +290,7 @@ def test_getparameters():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0, old_version=0,
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0,
                                  normalize_Sstep=False, normalize_Astep=False)
     cl.solver(G, M, SC, nbr_iter=10, model_p=1, A=np.eye(n_s), S_tol=1e-3, normalize=0)
     x = cl.get_params()
@@ -313,43 +313,43 @@ def test_wrongvalue():
     SC = np.array([[1, 1, 1], [1, 1, 0], [1, 0, 1]])
     m_p = 1
     M = np.dot(G, J[:, m_p:])
-    cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0, old_version=0,
+    cl = ciSDR.linear_model.eiSDR(l21_ratio=0.1, la=[0.1, 1], verbose=0,
                                  normalize_Sstep=False, normalize_Astep=False)
     try:
-        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, 100], verbose=0, old_version=0,
+        cl = ciSDR.linear_model.eiSDR(l21_ratio=0.1, la=[0.1, 100], verbose=0,
                                      normalize_Sstep=False, normalize_Astep=False)
         t1 = False
     except ValueError:
         t1 = True
 
     try:
-        cl = ciSDR.linear_model.iSDR(l21_ratio=200, la=[0.1, 0.5], verbose=0, old_version=0,
+        cl = ciSDR.linear_model.eiSDR(l21_ratio=200, la=[0.1, 0.5], verbose=0,
                                      normalize_Sstep=False, normalize_Astep=False)
         t2 = False
     except ValueError:
         t2 = True
     try:
-        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[200, 0.5], verbose=0, old_version=0,
+        cl = ciSDR.linear_model.eiSDR(l21_ratio=0.1, la=[200, 0.5], verbose=0,
                                      normalize_Sstep=False, normalize_Astep=False)
         t3 = False
     except ValueError:
         t3 = True
 
     try:
-        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[0.1, -10], verbose=0, old_version=0,
+        cl = ciSDR.linear_model.eiSDR(l21_ratio=0.1, la=[0.1, -10], verbose=0,
                                      normalize_Sstep=False, normalize_Astep=False)
         t4 = False
     except ValueError:
         t4 = True
 
     try:
-        cl = ciSDR.linear_model.iSDR(l21_ratio=-20, la=[0.1, 0.5], verbose=0, old_version=0,
+        cl = ciSDR.linear_model.eiSDR(l21_ratio=-20, la=[0.1, 0.5], verbose=0,
                                      normalize_Sstep=False, normalize_Astep=False)
         t5 = False
     except ValueError:
         t5 = True
     try:
-        cl = ciSDR.linear_model.iSDR(l21_ratio=0.1, la=[-20, 0.5], verbose=0, old_version=0,
+        cl = ciSDR.linear_model.eiSDR(l21_ratio=0.1, la=[-20, 0.5], verbose=0,
                                      normalize_Sstep=False, normalize_Astep=False)
         t6 = False
     except ValueError:

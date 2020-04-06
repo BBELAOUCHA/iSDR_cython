@@ -37,9 +37,17 @@ paper since now we are assuming a prior on the Multivariate Autoregressive Model
 
 ## Examples
 
+### iSDR
 ```python
 from iSDR_cython import iSDR
 model = iSDR(l21_reg=alpha)
+model.solver(G, M, SC, model_p=3)
+
+```
+### eiSDR
+```python
+from iSDR_cython import iSDR
+model = eiSDR(l21_reg=alpha, la=[lambda, beta])
 model.solver(G, M, SC, model_p=3)
 
 ```

@@ -20,7 +20,7 @@ paper since now we are assuming a prior on the Multivariate Autoregressive Model
 
 ```python
 from iSDR_cython import iSDR
-model = iSDR(l21_reg=lambda_)
+model = iSDR(l21_ratio=lambda_)
 model.solver(G, M, SC, model_p=3)
 
 ```
@@ -53,7 +53,29 @@ Where:
      
 ```python
 from iSDR_cython import iSDR
-model = eiSDR(l21_reg=lambda_, la=[alpha_, beta_])
+model = eiSDR(l21_ratio=lambda_, la=[alpha_, beta_])
+model.solver(G, M, SC, model_p=3)
+
+```
+
+### iSDRmne
+
+<img src="https://latex.codecogs.com/png.latex?%5Csmall%20%5Cbegin%7BBmatrix%7D%20U%28J%29%20%3D%26%20%5Csum_%7Bt%3Dp&plus;1%7D%5ET%20%5Cleft%20%5C%7C%20M_t%20-G%5Csum_%7Bi%3D1%7D%5Ep%20A_iJ_%7Bt-i%7D%5Cright%20%5C%7C%20&plus;%20%5Clambda%20%5Cleft%20%5C%7C%20J%20%5Cright%20%5C%7C_%7B21%7D%20&plus;%20%5Csum_%7Bt%3D1%7D%5Ep%20%5Cleft%20%5C%7C%20M_t-G%20%5Cright%20J_t%5C%7C%5C%5C%20V%28A%29%26%20%3D%5Cleft%20%5C%7CJ_v%20-%20J_JA_v%5C%7C%5Cright_2%5E2%5C%5C%20%5Cend%7Bmatrix%7D" title="\small \begin{Bmatrix} U(J) =& \sum_{t=p+1}^T \left \| M_t -G\sum_{i=1}^p A_iJ_{t-i}\right \| + \lambda \left \| J \right \|_{21} + \sum_{t=1}^p \left \| M_t-G \right J_t\|\\ V(A)& =\left \|J_v - J_JA_v\|\right_2^2\\ \end{matrix}" />
+
+```python
+from iSDR_cython import iSDRmne
+model = iSDRmne(l21_ratio=lambda_)
+model.solver(G, M, SC, model_p=3)
+
+```
+
+### eiSDRmne
+
+<img src="https://latex.codecogs.com/png.latex?%5Csmall%20%5Cbegin%7Bmatrix%7D%20U%28J%2C%20A%29%20%3D%20%26%20%5Csum_%7Bt%3Dp&plus;1%7D%5ET%20%5Cleft%20%5C%7CM_t%20-%20G%5Csum_%7Bt%3D1%7D%5Ep%20A_iJ_%7Bt-i%7D%5C%7C%20%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7CJ%5C%7C%5Cright_%7B21%7D%20&plus;%20%5Calpha%5Cbeta%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B1%7D%20%5C%5C%20%26%20&plus;%20%5Calpha%281-%5Cbeta%29%20%5Cleft%20%5C%7CS_cA_v%5C%7C%5Cright_%7B2%7D%5E2%20&plus;%5Csum_%7Bt%3D1%7D%5Ep%20%5C%7CM_t%20-%20G%20J_t%5C%7C%5Cright_2%5E2%20%5Cend%7Bmatrix%7D" title="\small \begin{matrix} U(J, A) = & \sum_{t=p+1}^T \left \|M_t - G\sum_{t=1}^p A_iJ_{t-i}\| \right_2^2 + \lambda \left \|J\|\right_{21} + \alpha\beta \left \|S_cA_v\|\right_{1} \\ & + \alpha(1-\beta) \left \|S_cA_v\|\right_{2}^2 +\sum_{t=1}^p \|M_t - G J_t\|\right_2^2 \end{matrix}" />
+
+```python
+from iSDR_cython import eiSDRmne
+model = eiSDRmne(l21_ratio=lambda_, la=[alpha_, beta_])
 model.solver(G, M, SC, model_p=3)
 
 ```

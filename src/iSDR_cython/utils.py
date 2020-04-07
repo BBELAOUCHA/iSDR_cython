@@ -211,7 +211,10 @@ def _run(args):
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
-        Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
+        if not int(includeMNE):
+            Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
+        else:
+            Mx = np.dot(G[:, cl.active_set[-1]], R)
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x] - Mx[:, :x])**2
         for i in range(n):

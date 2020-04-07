@@ -656,7 +656,7 @@ class iSDR(iSDRcore):
             includeMNE=False)
 
 
-class iSDRmne(iSDRcore):
+class iSDRols(iSDRcore):
     def __init__(self, l21_ratio=1.0, copy_X=True,
                  max_iter=[10000, 2000], random_state=None, selection='cyclic',
                  verbose=0, normalize_Sstep=False, normalize_Astep=False,
@@ -683,7 +683,7 @@ class eiSDR(iSDRcore):
             includeMNE=False)
 
 
-class eiSDRmne(iSDRcore):
+class eiSDRols(iSDRcore):
     def __init__(self, l21_ratio=1.0, la=[0.0, 1], copy_X=True,
                  max_iter=[10000, 2000], random_state=None, selection='cyclic',
                  verbose=0, normalize_Sstep=False, normalize_Astep=False,

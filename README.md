@@ -163,6 +163,8 @@ check examples/iSDR_example
 
 ## Cite
 
+(1) Brahim Belaoucha, Théodore Papadopoulo. (2020). Structural connectivity to reconstruct brain activation and effective connectivity between brain regions. Journal of Neural Engineering. 10.1088/1741-2552/ab8b2b. 
+
 (2) Brahim Belaoucha, Théodore Papadopoulo. Large brain effective network from EEG/MEG data and dMR information. PRNI 2017 – 7th International Workshop on Pattern Recognition in NeuroImaging, Jun 2017, Toronto, Canada.
 
 (3) Brahim Belaoucha, Mouloud Kachouane, Théodore Papadopoulo. Multivariate Autoregressive Model Constrained by Anatomical Connectivity to Reconstruct Focal Sources. 2016 38th Annual International Conference of the IEEE Engineering in Medicine and Biology Society (EMBC), Aug 2016, Orlando, United States. 2016.

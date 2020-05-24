@@ -824,9 +824,11 @@ class iSDRcv():
                 nbr_cpu = multiprocessing.cpu_count() - 2
                 if nbr_cpu < 1:
                     nbr_cpu = 1
-                pool = multiprocessing.Pool(nbr_cpu)
-                out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
-                pool.terminate()
+                #pool = multiprocessing.Pool(nbr_cpu)
+                #out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
+                from joblib import Parallel, delayed
+                out = Parallel(n_jobs=nbr_cpu)(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
+                #pool.terminate()
                 if self.cv is None:
                     self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef = zip(*out)
                     runid = []

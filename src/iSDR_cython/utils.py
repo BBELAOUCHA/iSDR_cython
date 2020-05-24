@@ -190,8 +190,11 @@ def _run(args):
     if int(o_v):
         if not int(includeMNE):
             cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
         else:
             cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+
     else:
         if not int(includeMNE):
             cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
@@ -199,6 +202,7 @@ def _run(args):
         else:
             cl = linear_model.eiSDRols(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
                                 normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
 
     cl.solver(G, M, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
     R = cl.Scoef_.copy()
@@ -209,12 +213,19 @@ def _run(args):
     l1a_l1norm,  l1a_l2norm= 0, 0
     n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+        Mx = np.zeros(M.shape)
         n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
+        Gx = np.dot(G[:, np.array(cl.active_set[-1])], cl.Acoef_)
         if not int(includeMNE):
-            Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
+            for j in range(m_p):
+                Mx += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:])
         else:
-            Mx = np.dot(G[:, cl.active_set[-1]], R)
+            Mx[:,:m_p] = np.dot(G[:, np.array(cl.active_set[-1])], R[:, :m_p])
+            for j in range(m_p):
+                Mx[:,m_p:] += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:])
+                
+
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x] - Mx[:, :x])**2
         for i in range(n):
@@ -277,8 +288,10 @@ def _runCV(args):
     if int(o_v):
         if not int(includeMNE):
             cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+            print(includeMNE)
         else:
             cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+            print(includeMNE)
     else:
         if not int(includeMNE):
             cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],

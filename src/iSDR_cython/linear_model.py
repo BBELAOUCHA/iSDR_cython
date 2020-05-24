@@ -656,7 +656,7 @@ class iSDR(iSDRcore):
             includeMNE=False)
 
 
-class iSDRmne(iSDRcore):
+class iSDRols(iSDRcore):
     def __init__(self, l21_ratio=1.0, copy_X=True,
                  max_iter=[10000, 2000], random_state=None, selection='cyclic',
                  verbose=0, normalize_Sstep=False, normalize_Astep=False,
@@ -683,7 +683,7 @@ class eiSDR(iSDRcore):
             includeMNE=False)
 
 
-class eiSDRmne(iSDRcore):
+class eiSDRols(iSDRcore):
     def __init__(self, l21_ratio=1.0, la=[0.0, 1], copy_X=True,
                  max_iter=[10000, 2000], random_state=None, selection='cyclic',
                  verbose=0, normalize_Sstep=False, normalize_Astep=False,
@@ -701,7 +701,8 @@ class iSDRcv():
                  la_ratio_values=[1], normalize =[0],
                  max_run = None, seed=2020, parallel=True, tmp='/tmp',
                  verbose=False,old_version=False,
-                 normalize_Astep=[0],normalize_Sstep=[0], cv=None,criterion='bic'):
+                 normalize_Astep=[0],normalize_Sstep=[0], cv=None,
+                 criterion='bic',includeMNE=False):
         """
         This function is used to run cross-validation with grid run of
         all combination of parameters and hyper-parameters and return
@@ -756,6 +757,7 @@ class iSDRcv():
             normalize_Sstep = [normalize_Sstep]
 
         old_version = 1 if old_version else 0
+        includeMNE = 1 if includeMNE else 0
         l21_values = np.unique(l21_values)
         la_values = np.unique(la_values)
         la_ratio_values = np.unique(la_ratio_values)
@@ -764,11 +766,11 @@ class iSDRcv():
         if cv is None:
             prod = product(l21_values, la_values,la_ratio_values, model_p,
             normalize, [foldername], [old_version], normalize_Astep,
-            normalize_Sstep)
+            normalize_Sstep,[includeMNE])
         else:
             prod = product(l21_values, la_values,la_ratio_values, model_p,
             normalize, [foldername], [old_version], normalize_Astep,
-            normalize_Sstep, [int(cv)], [seed])
+            normalize_Sstep, [int(cv)], [seed],[includeMNE])
         for i in prod:
             all_comb.append(i)
         all_comb = np.array(all_comb)
@@ -822,9 +824,11 @@ class iSDRcv():
                 nbr_cpu = multiprocessing.cpu_count() - 2
                 if nbr_cpu < 1:
                     nbr_cpu = 1
-                pool = multiprocessing.Pool(nbr_cpu)
-                out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
-                pool.terminate()
+                #pool = multiprocessing.Pool(nbr_cpu)
+                #out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
+                from joblib import Parallel, delayed
+                out = Parallel(n_jobs=nbr_cpu)(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
+                #pool.terminate()
                 if self.cv is None:
                     self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef = zip(*out)
                     runid = []
@@ -896,7 +900,7 @@ class eiSDR_cv():
     def __init__(self, l21_values=[1e-3], la_values=[1e-3],
     la_ratio_values=[1], normalize=[0], model_p=[1], verbose=False,
     max_run=None, old_version=False, parallel=True,
-    normalize_Astep=[0], normalize_Sstep = [0]):
+    normalize_Astep=[0], normalize_Sstep = [0], includeMNE=False):
         """
         This function run grid search cross validation and return the optimal values
         Parameters
@@ -948,10 +952,12 @@ class eiSDR_cv():
         self.verbose = verbose
         self.max_run = max_run
         self.old_version = 1 if old_version else 0
+        self.includeMNE = 1 if includeMNE else 0
         self.parallel = parallel
         self.time = None
         self.normalize_Astep = normalize_Astep
         self.normalize_Sstep = normalize_Sstep
+
     def get_opt(self, G, M, SC):
         self.time = -time.time()
         cv = iSDRcv(l21_values=self.l21_values,
@@ -964,7 +970,8 @@ class eiSDR_cv():
                     old_version=self.old_version,
                     parallel=self.parallel,
                     normalize_Astep = self.normalize_Astep,
-                    normalize_Sstep = self.normalize_Sstep
+                    normalize_Sstep = self.normalize_Sstep,
+                    includeMNE=self.includeMNE
                     )
         if self.verbose:
             print('Total number of combination %s'%len(cv.all_comb))

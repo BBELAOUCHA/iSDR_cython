@@ -177,7 +177,7 @@ def _run(args):
     l1a_l2norm: the l2norm of the reconstructed MAR model
     cl.l21_ratio: the l21 norm used in the regularization (not in %)
     """
-    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, includeMNE = args
 
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
@@ -188,10 +188,21 @@ def _run(args):
         A = None
     m_p = int(float(m_p))
     if int(o_v):
-        cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+        if not int(includeMNE):
+            cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+        else:
+            cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+
     else:
-        cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+        if not int(includeMNE):
+            cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
                                 normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+        else:
+            cl = linear_model.eiSDRols(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
 
     cl.solver(G, M, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
     R = cl.Scoef_.copy()
@@ -202,9 +213,19 @@ def _run(args):
     l1a_l1norm,  l1a_l2norm= 0, 0
     n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+        Mx = np.zeros(M.shape)
         n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
-        Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
+        Gx = np.dot(G[:, np.array(cl.active_set[-1])], cl.Acoef_)
+        if not int(includeMNE):
+            for j in range(m_p):
+                Mx += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:])
+        else:
+            Mx[:,:m_p] = np.dot(G[:, np.array(cl.active_set[-1])], R[:, :m_p])
+            for j in range(m_p):
+                Mx[:,m_p:] += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:])
+                
+
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x] - Mx[:, :x])**2
         for i in range(n):
@@ -243,7 +264,7 @@ def _runCV(args):
     l1a_l2norm: the l2norm of the reconstructed MAR model
     cl.l21_ratio: the l21 norm used in the regularization (not in %)
     """
-    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, _, seed, test_data, run_ix  = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, _, seed, includeMNE, test_data, run_ix  = args
     test_data = np.array(test_data)
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
@@ -265,9 +286,18 @@ def _runCV(args):
     l21_ratio = 0
     train_data = np.array([j for j in range(n_c) if not j in test_data])
     if int(o_v):
-        cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+        if not int(includeMNE):
+            cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+            print(includeMNE)
+        else:
+            cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+            print(includeMNE)
     else:
-        cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+        if not int(includeMNE):
+            cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+        else:
+            cl = linear_model.eiSDRols(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
                                 normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
     gtmp = G[train_data, :]
     mtmp = M[train_data, :]

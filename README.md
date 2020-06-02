@@ -16,7 +16,7 @@ paper since now we are assuming a prior on the Multivariate Autoregressive Model
 
 ### iSDR
 
-<img src="https://latex.codecogs.com/png.latex?%5Clarge%20%5Cleft%5C%7B%5Cbegin%7Bmatrix%7D%20U%28J%29%26%20%3D%5Cleft%20%5C%7CM_v%20-%20G_dJ_v%5C%7C%5Cright_2%5E2%20&plus;%20%5Clambda%20%5Cleft%5C%7CJ%5C%7C%5Cright_%7B21%7D%5E2%5C%5C%20V%28A%29%26%20%3D%5Cleft%20%5C%7CJ_v%20-%20J_JA_v%5C%7C%5Cright_2%5E2%5C%5C%20%5Cend%7Bmatrix%7D%5Cright" title="\large \left\{\begin{matrix} U(J)& =\left \|M_v - G_dJ_v\|\right_2^2 + \lambda \left\|J\|\right_{21}^2\\ V(A)& =\left \|J_v - J_JA_v\|\right_2^2\\ \end{matrix}\right"/>
+<img src="https://latex.codecogs.com/gif.latex?%5Cbegin%7Bmatrix%7D%20U%28J%29%20%26%20%3D%20%5C%7CM_v%20-%20G_dJ_v%5C%7C_2%5E2%20&plus;%20%5Clambda%20%5C%7CJ%5C%7C_%7B21%7D%5C%5C%20V%28A%29%20%26%20%3D%20%5C%7CJ_v%20-%20J_JA_v%5C%7C_2%5E2%20%5Cend%7Bmatrix%7D" title="\begin{matrix} U(J) & = \|M_v - G_dJ_v\|_2^2 + \lambda \|J\|_{21}\\V(A) & = \|J_v - J_JA_v\|_2^2 \end{matrix}"/>
 
 Where: 
 

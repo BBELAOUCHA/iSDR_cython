@@ -168,7 +168,7 @@ check examples/iSDR_example
 
 ## Cite
 
-(1) Brahim Belaoucha, Théodore Papadopoulo. (2020). Structural connectivity to reconstruct brain activation and effective connectivity between brain regions. Journal of Neural Engineering. 10.1088/1741-2552/ab8b2b.
+(1) Belaoucha B, Papadopoulo T. Structural connectivity to reconstruct brain activation and effective connectivity between brain regions. J Neural Eng. 2020;17(3):035006. Published 2020 Jun 29. doi:10.1088/1741-2552/ab8b2b
 
 (2) Brahim Belaoucha, Théodore Papadopoulo. Large brain effective network from EEG/MEG data and dMR information. PRNI 2017 – 7th International Workshop on Pattern Recognition in NeuroImaging, Jun 2017, Toronto, Canada.
 

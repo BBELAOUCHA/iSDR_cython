@@ -1,4 +1,4 @@
-# iSDR_cython: Cython implementation of iSDR_p and eISDR_p (elasticnet Iterative Source and Dynamics Reconstruction)
+# e/iSDR_cython: Cython implementation of iSDR_p and eISDR_p (elasticnet Iterative Source and Dynamics Reconstruction)
 [![Build Status](https://travis-ci.com/BBELAOUCHA/iSDR_cython.svg?branch=development)](https://travis-ci.com/BBELAOUCHA/iSDR_cython)
 [![codecov](https://codecov.io/gh/BBELAOUCHA/iSDR_cython/branch/development/graph/badge.svg)](https://codecov.io/gh/BBELAOUCHA/iSDR_cython)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/555130d02e134e819bc599b93cfe53c9)](https://www.codacy.com/manual/BBELAOUCHA/iSDR_cython?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=BBELAOUCHA/iSDR_cython&amp;utm_campaign=Badge_Grade)

@@ -77,7 +77,10 @@ model.solver(G, M, SC, model_p=3)
 
 ### iSDRols
 
-<img src="https://latex.codecogs.com/png.latex?%5Csmall%20%5Cbegin%7BBmatrix%7D%20U%28J%29%20%3D%26%20%5Csum_%7Bt%3Dp&plus;1%7D%5ET%20%5Cleft%20%5C%7C%20M_t%20-G%5Csum_%7Bi%3D1%7D%5Ep%20A_iJ_%7Bt-i%7D%5Cright%20%5C%7C_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7C%20J%20%5Cright%20%5C%7C_%7B21%7D%20&plus;%20%5Csum_%7Bt%3D1%7D%5Ep%20%5Cleft%20%5C%7C%20M_t-G%20%5Cright%20J_t%5C%7C_2%5E2%5C%5C%20V%28A%29%20%3D%20%26%20%5Cleft%20%5C%7CJ_v%20-%20J_JA_v%5C%7C%5Cright_2%5E2%5C%5C%20%5Cend%7Bmatrix%7D" title="\small \begin{Bmatrix} U(J) =& \sum_{t=p+1}^T \left \| M_t -G\sum_{i=1}^p A_iJ_{t-i}\right \|_2^2 + \lambda \left \| J \right \|_{21} + \sum_{t=1}^p \left \| M_t-G \right J_t\|_2^2\\ V(A) = & \left \|J_v - J_JA_v\|\right_2^2\\ \end{matrix}" />
+<img src="https://latex.codecogs.com/png.latex?%5Csmall%20%5Cbegin%7BBmatrix%7D%20U%28J%29%20%3D%26%20%5Csum_%7Bt%3Dp&plus;1%7D%5ET%20%5Cleft%20%5C%7C%20M_t%20-G%5Csum_%7Bi%3D1%7D%5Ep%20A_iJ_%7Bt-i%7D%20%5Cright%20%5C%7C_2%5E2%20&plus;%20%5Clambda%20%5Cleft%20%5C%7C%20J%20%5Cright%20%5C%7C_%7B21%7D%20&plus;%20%5Csum_%7Bt%3D1%7D%5Ep%5Cleft%20%5C%7C%20M_t-G%20J_t%20%5Cright%20%5C%7C_2%5E2%5C%5C%20V%28A%29%20%3D%20%26%20%5Cleft%20%5C%7C%20J_v%20-%20J_JA_v%20%5Cright%20%5C%7C_2%5E2%20%5Cend%7Bmatrix%7D" title=" \small 
+\begin{Bmatrix} U(J) =& \sum_{t=p+1}^T \left \| M_t -G\sum_{i=1}^p A_iJ_{t-i} \right \|_2^2 + \lambda \left \| J \right \|_{21} + \sum_{t=1}^p\left \| M_t-G J_t \right \|_2^2\\
+ V(A) = & \left \| J_v - J_JA_v \right \|_2^2
+\end{matrix}" />
 
 where:
 

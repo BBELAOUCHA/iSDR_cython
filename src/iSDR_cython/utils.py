@@ -219,11 +219,11 @@ def _run(args):
         Gx = np.dot(G[:, np.array(cl.active_set[-1])], cl.Acoef_)
         if not int(includeMNE):
             for j in range(m_p):
-                Mx += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:])
+                Mx += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:Mx.shape[1]+j])
         else:
             Mx[:,:m_p] = np.dot(G[:, np.array(cl.active_set[-1])], R[:, :m_p])
             for j in range(m_p):
-                Mx[:,m_p:] += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:])
+                Mx[:,m_p:] += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:Mx[:,m_p:].shape[1]+j])
                 
 
         x = min(Mx.shape[1], M.shape[1])
@@ -288,10 +288,10 @@ def _runCV(args):
     if int(o_v):
         if not int(includeMNE):
             cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
-            print(includeMNE)
+
         else:
             cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
-            print(includeMNE)
+
     else:
         if not int(includeMNE):
             cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
@@ -306,20 +306,36 @@ def _runCV(args):
     l21_ratio = cl.l21_ratio
     n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+
         n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
         nbr = n
-        Mx = M[test_data, :].copy()
+        if not includeMNE:
+            Mx = M[test_data, :].copy()
+        else:
+            Mx = M[test_data, :-1].copy()
         ns = len(cl.active_set[-1])
-        for k in range(Mx.shape[1]):
-            Mx[:, k] = 0
-            for m in range(m_p):
-                gtmp = G[test_data, :]
-                gtmp = gtmp[:, np.array(cl.active_set[-1])]
-                x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
-                Mx[:, k] += np.dot(x, R[:, k+m])
+        if not int(includeMNE):
+            gtmp = G[test_data, :]
+            gtmp = gtmp[:, np.array(cl.active_set[-1])]
+            Mx[:, :m_p] = np.dot(gtmp, R[:, :m_p])
+            for k in range(m_p, Mx.shape[1]):
+                Mx[:, k] = 0
+                for m in range(m_p):
+                    x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
+                    Mx[:, k] += np.dot(x, R[:, k+m])
+        else:
+            gtmp = G[test_data, :]
+            gtmp = gtmp[:, np.array(cl.active_set[-1])]
+            Mx[:, :m_p] = np.dot(gtmp, R[:, :m_p])
+            for k in range(m_p, Mx.shape[1]):
+                Mx[:, k] = 0
+                for m in range(m_p):
+                    x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
+                    Mx[:, k] += np.dot(x, R[:, k+m-m_p])
+
         x = min(Mx.shape[1], M.shape[1])
-        rms = np.linalg.norm(M[test_data, :] - Mx)**2
+        rms = np.linalg.norm(M[test_data, :x] - Mx[:, :x])**2
         l = 0
         for i in range(n):
             l += np.linalg.norm(R[i, :])

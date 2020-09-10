@@ -201,10 +201,17 @@ class iSDRcore(object):
         if self.selection not in ['random', 'cyclic']:
             raise ValueError("selection should be either random or cyclic.")
         random = (self.selection == 'random')
+        Lip = np.zeros(X.shape[1], dtype=X.dtype.type, order='F')
+        if self.m_p == 1:
+            Lip = np.sum(np.dot(X.T, X), axis=0)
+        else:
+            for i in range(self.n_source):
+                gi = X[:, i::self.n_source]
+                Lip[i] = 1.01*np.linalg.norm(np.dot(gi.T, gi), ord=2)
 
         self.Scoef_, self.dual_gap_, self.eps_, self.n_iter_ = \
                 cd_fast.enet_coordinate_descent_iSDR(
-                    self.Scoef_, self.l21_ratio, X, y.reshape(-1, order='F'),
+                    self.Scoef_, self.l21_ratio, X, y.reshape(-1, order='F'), Lip,
                     self.m_p, self.max_iter[0], self.S_tol,
                     check_random_state(self.random_state), random,
                     self.verbose)
@@ -263,10 +270,17 @@ class iSDRcore(object):
         if self.selection not in ['random', 'cyclic']:
             raise ValueError("selection should be either random or cyclic.")
         random = (self.selection == 'random')
+        Lip = np.zeros(G.shape[1], dtype=X.dtype.type, order='F')
+        if self.m_p == 1:
+            Lip = np.sum(np.dot(X.T, X), axis=0)
+        else:
+            for i in range(G.shape[1]):
+                gi = X[:, i::G.shape[1]]
+                Lip[i] = 1.01*np.linalg.norm(np.dot(gi.T, gi), ord=2)
 
         Scoef_, self.dual_gap_, self.eps_,  self.n_iter_ = \
             cd_fast.cd_mneiSDR(
-                Scoef_, self.l21_ratio, X, G, y.reshape(-1, order='F'),
+                Scoef_, self.l21_ratio, X, G, y.reshape(-1, order='F'), Lip,
                     self.m_p, self.max_iter[0], self.S_tol,
                     check_random_state(self.random_state), random,
                     self.verbose)
@@ -471,6 +485,32 @@ class iSDRcore(object):
             previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
         for i in range(nbr_iter):
             GAtmp = np.dot(Gtmp, A)
+            """
+            idx = []
+            idy = []
+            for l in range(self.n_source):
+                g = GAtmp[:, l::self.n_source]
+                gx = []
+                for k in range(self.m_p):
+                    a = np.dot(g[:, k], Mtmp[:, k:Mtmp.shape[1] - self.m_p + k])
+                    gx.append(a)
+                gm = np.linalg.norm(gx)
+                if gm > self.l21_ratio:
+                    idx.append(l)
+                    for k in range(self.m_p):
+                        idy.append(l+k*self.n_source)
+            if len(idx):
+                idx = np.array(idx)
+                Gtmp = Gtmp[:, idx]
+                SCtmp = SCtmp[idx, :]
+                SCtmp = SCtmp[:, idx]
+                A = A[idx, :]
+                A = A[:, idy]
+                GAtmp = np.dot(Gtmp, A)
+                active_regions = idx.copy()
+                previous_j = previous_j[idx, :]
+                self.Acoef_ = A.copy()
+            """
             self.S_step(GAtmp, Mtmp, Gtmp)
             idx = np.std(self.Scoef_, axis=1) > 0
             active_regions = active_regions[idx]
@@ -478,6 +518,7 @@ class iSDRcore(object):
             self.dual_gap.append(self.dual_gap_)
             self.mxne_iter.append(self.n_iter_)
             self.nbr_iter = i
+            self.Acoef_ = A.copy()
             t = np.linalg.norm(previous_j - self.Scoef_)/Mtmp.shape[1]
             if self.verbose:
                 print("Iteration %s: nbr of active sources %s"%(i+1, len(active_regions)))
@@ -492,16 +533,24 @@ class iSDRcore(object):
                 SCtmp = SCtmp[idx, :]
                 SCtmp = SCtmp[:, idx]
                 self.Scoef_ = self.Scoef_[idx, :]
+                self.Acoef_ = self.Acoef_[idx, :]
+                idy = []
+                for kx in range(self.m_p):
+                    idy.extend(idx)
+                self.Acoef_ = self.Acoef_[:, np.array(idy)]
+
             if np.sum(idx) == 0:
                 self.Acoef_ = []
                 self.Scoef_ = []
                 self.time += time.time()
+                self.n_source = 0
                 break
 
             previous_j = self.Scoef_.copy()
             A, _ = self.A_step(Gtmp, Mtmp, SCtmp, normalize=self.normalize)
             self.Acoef_ = A
             self.n_source = np.sum(idx)
+
             if t < S_tol:
                 if self.verbose:
                     print('Stopped at iteration %s : Change in S-step tol %.4f > %.4f  '%(i+1, S_tol, t))
@@ -824,10 +873,11 @@ class iSDRcv():
                 nbr_cpu = multiprocessing.cpu_count() - 2
                 if nbr_cpu < 1:
                     nbr_cpu = 1
-                #pool = multiprocessing.Pool(nbr_cpu)
-                #out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
+                #with multiprocessing.Pool(nbr_cpu) as pool:
+                #   out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 from joblib import Parallel, delayed
-                out = Parallel(n_jobs=nbr_cpu)(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
+                #with Parallel(backend='threading', n_jobs=nbr_cpu, require='sharedmem') as parallel:
+                out = Parallel(backend='threading', n_jobs=nbr_cpu, require='sharedmem')(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
                 #pool.terminate()
                 if self.cv is None:
                     self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef = zip(*out)
@@ -876,7 +926,8 @@ class iSDRcv():
                 df['Obj'] = df.rms + df.S_prior*df.l21_real +\
                 df.A_prior_l1*df.la*df.la_reg_r +\
                             df.A_prior_l2*df.la*(0.5-0.5*df.la_reg_r)
-                df = utils.compute_criterion(M, df, criterion=self.criterion, include_S=0)
+                if self.cv is None:
+                    df = utils.compute_criterion(M, df, criterion=self.criterion, include_S=0)
                 self.time += time.time()
         except Exception as e:
             print(e)

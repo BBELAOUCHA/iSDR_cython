@@ -6,11 +6,18 @@
 #
 # License: BSD 3 clause
 #
-# cython: boundscheck=False, wraparound=False, cdivision=True
+#cython: boundscheck=False
+#cython: nonecheck=False
+#cython: wraparound=False
+#cython: infertypes=True
+#cython: initializedcheck=False
+#cython: cdivision=True
+#cython: language_level=3
 
 from libc.math cimport fabs
-cimport numpy as np
 import numpy as np
+cimport numpy as np
+
 import numpy.linalg as linalg
 
 cimport cython
@@ -96,10 +103,11 @@ cdef floating diff_abs_max(int n, floating* a, floating* b) nogil:
     return m
 
 
-def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
+cpdef enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                             floating alpha,
                             np.ndarray[floating, ndim=2, mode='fortran'] X,
                             np.ndarray[floating, ndim=1] y,
+                            np.ndarray[floating, ndim=1] Lip,
                             int m_p, int max_iter, floating tol,
                             object rng, bint random=0, int verbose=0):
     """Cython version iSDR
@@ -173,6 +181,9 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                 s += X[i, jj + ii*n_s]**2
         if s != 0.0:
                 mu_X[jj] =  1.0 / s
+        #if Lip[jj] != 0.0:
+        #    mu_X[jj] =  1.0 / Lip[jj]
+
     with nogil:
         # R = y - np.dot(X, w)
         _copy(n_t * n_c, Y_ptr, 1, R_ptr, 1)
@@ -213,6 +224,7 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
                 if d_w_ii != 0.0:
                     for jj in range(n_t_s):
                         tmp[jj] -= w_ii[jj]
+                    #_axpy(n_t_s, -1, &w_ii[0], 1, &tmp[0], 1)
 
                     for jj in range(n_t):
                         _gemv(ColMajor, NoTrans, n_c, m_p, -1, X_ptr + ii*n_c, n_c*n_s, &tmp[0] + jj, 1, 1, &R[0] + jj*n_c, 1)
@@ -286,11 +298,13 @@ def enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
     return np.asarray(w), gap, tol, n_iter + 1
    
 
-def cd_mneiSDR(np.ndarray[floating, ndim=1] w,
+
+cpdef cd_mneiSDR(np.ndarray[floating, ndim=1] w,
                             floating alpha,
                             np.ndarray[floating, ndim=2, mode='fortran'] X,
                             np.ndarray[floating, ndim=2, mode='fortran'] G,
                             np.ndarray[floating, ndim=1] y,
+                            np.ndarray[floating, ndim=1] Lip,
                             int m_p, int max_iter, floating tol,
                             object rng, bint random=0, int verbose=0):
     """Cython version iSDR
@@ -365,6 +379,9 @@ def cd_mneiSDR(np.ndarray[floating, ndim=1] w,
                 s += X[i, jj + ii*n_s]**2
         if s != 0.0:
                 mu_X[jj] =  1.0 / s
+        #if Lip[jj] != 0:
+        #    mu_X[jj] =  1.0 / Lip[jj]
+
     with nogil:
         # R = y - np.dot(X, w)
         _copy(n_t * n_c, Y_ptr, 1, R_ptr, 1)
@@ -408,7 +425,7 @@ def cd_mneiSDR(np.ndarray[floating, ndim=1] w,
                 if d_w_ii != 0.0:
                     for jj in range(n_t_s):
                         tmp[jj] -= w_ii[jj]
-
+                    #_axpy(n_t_s, -1.0, &w_ii[0], 1, &tmp[0], 1)
                     for jj in range(m_p, n_t):
                         _gemv(ColMajor, NoTrans, n_c, m_p, -1, X_ptr + ii*n_c, n_c*n_s, &tmp[0] + jj - m_p, 1, 1, &R[0] + jj*n_c, 1)
                     for jj in range(m_p):
@@ -436,7 +453,6 @@ def cd_mneiSDR(np.ndarray[floating, ndim=1] w,
                         s = (_dot(n_c, &G[0, 0] + ii*n_c, 1, &R[0] + i * n_c, 1))
                         for j in range(i + 1):
                              s += (_dot(n_c, X_ptr + ii * n_c + (i - j) * block, 1, &R[0] + j * n_c + m_p*n_c, 1))
-
                         XtA[ii, i] = s
 
                     XtA[ii, n_t_s - 1] = (_dot(n_c, X_ptr + ii * n_c + (m_p - 1 ) * block, 1, &R[0] + (n_t - 1) * n_c, 1))
@@ -484,4 +500,3 @@ def cd_mneiSDR(np.ndarray[floating, ndim=1] w,
                                   "gap: {}, tolerance: {}".format(gap, tol),
                                   ConvergenceWarning)
     return np.asarray(w), gap, tol, n_iter + 1
-

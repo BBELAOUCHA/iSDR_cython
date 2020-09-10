@@ -34,5 +34,5 @@ install:
 
 # command to run tests
 script:
-    - nosetests -v --with-coverage
+    - nosetests -v --with-coverage --cover-package=iSDR_cython
     - codecov -t 85b26c32-8e30-4dd5-b07c-64cff0361d63

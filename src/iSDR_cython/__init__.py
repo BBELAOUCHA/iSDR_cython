@@ -1,2 +1,2 @@
-from .linear_model import  iSDR, eiSDR_cv, iSDRcv
+from .linear_model import  iSDR, iSDRols, eiSDR, eiSDRols, eiSDR_cv, iSDRcv
 from . import utils

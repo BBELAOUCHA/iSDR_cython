@@ -49,9 +49,9 @@ def construct_J(G, SC, J, m_p, old=False):
     idx = SCx > 0
     if old:
         n_m = n_s
-
-    data_big = np.zeros(((n_t-m_p+1)*n_m, np.sum(idx)), dtype=np.float)
-    for t in range(n_t-m_p+1):
+    m = n_t-m_p+1
+    data_big = np.zeros((m*n_m, np.sum(idx)), dtype=np.float)
+    for t in range(m):
         data_x = _constructJt(J[:, t:t+m_p])[:, idx]
         if not old:
             data_x = np.dot(G, data_x)
@@ -177,7 +177,7 @@ def _run(args):
     l1a_l2norm: the l2norm of the reconstructed MAR model
     cl.l21_ratio: the l21 norm used in the regularization (not in %)
     """
-    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, includeMNE = args
 
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
@@ -187,8 +187,23 @@ def _run(args):
     else:
         A = None
     m_p = int(float(m_p))
-    cl = linear_model.iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(o_v),
-              normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    if int(o_v):
+        if not int(includeMNE):
+            cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+        else:
+            cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+
+    else:
+        if not int(includeMNE):
+            cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+        else:
+            cl = linear_model.eiSDRols(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+
     cl.solver(G, M, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
     R = cl.Scoef_.copy()
     n_c, n_t = M.shape
@@ -196,9 +211,21 @@ def _run(args):
     n = 0
     l21s = 0
     l1a_l1norm,  l1a_l2norm= 0, 0
+    n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+        Mx = np.zeros(M.shape)
+        n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
-        Mx = np.dot(G[:, cl.active_set[-1]], R[:, m_p:])
+        Gx = np.dot(G[:, np.array(cl.active_set[-1])], cl.Acoef_)
+        if not int(includeMNE):
+            for j in range(m_p):
+                Mx += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:Mx.shape[1]+j])
+        else:
+            Mx[:,:m_p] = np.dot(G[:, np.array(cl.active_set[-1])], R[:, :m_p])
+            for j in range(m_p):
+                Mx[:,m_p:] += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:Mx[:,m_p:].shape[1]+j])
+                
+
         x = min(Mx.shape[1], M.shape[1])
         rms = np.linalg.norm(M[:, :x] - Mx[:, :x])**2
         for i in range(n):
@@ -206,7 +233,7 @@ def _run(args):
         l1a_l1norm = np.sum(np.abs(cl.Acoef_))
         l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
 
-    return rms/(2*n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0]
+    return rms/(n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0], n_a_coef
 
 
 def _runCV(args):
@@ -237,7 +264,7 @@ def _runCV(args):
     l1a_l2norm: the l2norm of the reconstructed MAR model
     cl.l21_ratio: the l21 norm used in the regularization (not in %)
     """
-    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, _, seed, test_data, run_ix  = args
+    l21_reg, la, la_ratio, m_p, normalize, foldername, o_v, n_Astep, n_Sstep, _, seed, includeMNE, test_data, run_ix  = args
     test_data = np.array(test_data)
     G = np.array(load(foldername+'/G.dat', mmap_mode='r'))
     M = np.array(load(foldername+'/M.dat', mmap_mode='r'))
@@ -258,27 +285,57 @@ def _runCV(args):
     l1a_l2norm = 0
     l21_ratio = 0
     train_data = np.array([j for j in range(n_c) if not j in test_data])
-    cl = linear_model.iSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)], old_version=int(o_v),
-                  normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+    if int(o_v):
+        if not int(includeMNE):
+            cl = linear_model.iSDR(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+        else:
+            cl = linear_model.iSDRols(l21_ratio=float(l21_reg), normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+
+    else:
+        if not int(includeMNE):
+            cl = linear_model.eiSDR(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
+        else:
+            cl = linear_model.eiSDRols(l21_ratio=float(l21_reg), la=[float(la), float(la_ratio)],
+                                normalize_Astep=int(n_Astep), normalize_Sstep=int(n_Sstep))
     gtmp = G[train_data, :]
     mtmp = M[train_data, :]
     cl.solver(gtmp, mtmp, SC, model_p=int(m_p), A=A, normalize=int(float(normalize)))
     R = cl.Scoef_.copy()
     l21_ratio = cl.l21_ratio
+    n_a_coef = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
+
+        n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
         nbr = n
-        Mx = M[test_data, :].copy()
+        if not includeMNE:
+            Mx = M[test_data, :].copy()
+        else:
+            Mx = M[test_data, :-1].copy()
         ns = len(cl.active_set[-1])
-        for k in range(Mx.shape[1]):
-            Mx[:, k] = 0
-            for m in range(m_p):
-                gtmp = G[test_data, :]
-                gtmp = gtmp[:, np.array(cl.active_set[-1])]
-                x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
-                Mx[:, k] += np.dot(x, R[:, k+m])
+        if not int(includeMNE):
+            gtmp = G[test_data, :]
+            gtmp = gtmp[:, np.array(cl.active_set[-1])]
+            Mx[:, :m_p] = np.dot(gtmp, R[:, :m_p])
+            for k in range(m_p, Mx.shape[1]):
+                Mx[:, k] = 0
+                for m in range(m_p):
+                    x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
+                    Mx[:, k] += np.dot(x, R[:, k+m])
+        else:
+            gtmp = G[test_data, :]
+            gtmp = gtmp[:, np.array(cl.active_set[-1])]
+            Mx[:, :m_p] = np.dot(gtmp, R[:, :m_p])
+            for k in range(m_p, Mx.shape[1]):
+                Mx[:, k] = 0
+                for m in range(m_p):
+                    x=np.dot(gtmp, cl.Acoef_[:, m*ns:ns*(m+1)])
+                    Mx[:, k] += np.dot(x, R[:, k+m-m_p])
+
         x = min(Mx.shape[1], M.shape[1])
-        rms = np.linalg.norm(M[test_data, :] - Mx)**2
+        rms = np.linalg.norm(M[test_data, :x] - Mx[:, :x])**2
         l = 0
         for i in range(n):
             l += np.linalg.norm(R[i, :])
@@ -291,5 +348,21 @@ def _runCV(args):
         l21s = 0
         l1a_l1norm = 0
         l1a_l2norm = 0
-    rms = rms/(2*n_t*len(test_data))
-    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], run_ix
+    rms = rms/(n_t*len(test_data))
+    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], n_a_coef, run_ix
+
+def compute_criterion(M, results, criterion='bic', include_S=1):
+    sigma2 = np.var(M)
+    n_c, n_t = M.shape
+    n_samples = n_c * n_t
+    if criterion == 'aic':
+        K = 2  # AIC
+    elif criterion == 'bic':
+        K = np.log(n_samples)  # BIC
+    else:
+        raise ValueError("Wrong value for criterion: %s" %criterion)
+    mean_squared_error = results.rms
+    df = results['nbr_coef'] + include_S * results['nbr']
+    criterion_ = ((n_samples * mean_squared_error) / sigma2 + K * df)
+    results[criterion] = criterion_ / n_samples
+    return results

@@ -850,6 +850,7 @@ class iSDRcv():
         self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio = [], [], [], [], [], []
         self.la = []
         self.nbr_coef = []
+        self.stx = []
         df = {}
         if self.cv is None:
             par_func = utils._run
@@ -873,17 +874,17 @@ class iSDRcv():
                 nbr_cpu = multiprocessing.cpu_count() - 2
                 if nbr_cpu < 1:
                     nbr_cpu = 1
-                #with multiprocessing.Pool(nbr_cpu) as pool:
-                #   out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
+                with multiprocessing.Pool(nbr_cpu) as pool:
+                   out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
                 from joblib import Parallel, delayed
                 #with Parallel(backend='threading', n_jobs=nbr_cpu, require='sharedmem') as parallel:
-                out = Parallel(backend='threading', n_jobs=nbr_cpu, require='sharedmem')(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
+                #out = Parallel(n_jobs=nbr_cpu, require='sharedmem')(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
                 #pool.terminate()
                 if self.cv is None:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef, self.stx = zip(*out)
                     runid = []
                 else:
-                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef, runid = zip(*out)
+                    self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef, runid, self.stx = zip(*out)
             else:
                 runid = []
                 for i in tqdm(range(len(self.all_comb))):
@@ -896,8 +897,9 @@ class iSDRcv():
                     self.l21_ratio.append(x[5])
                     self.la.append(x[6])
                     self.nbr_coef.append(x[7])
+                    self.stx.append(x[-1])
                     if not self.cv is None:
-                        runid.append(x[-1])
+                        runid.append(x[-2])
 
             if len(self.rms):
                 self.all_comb = np.array(self.all_comb)
@@ -919,7 +921,8 @@ class iSDRcv():
                     'normalize_Astep':self.all_comb[:, 7].astype(int),
                     'normalize_Sstep':self.all_comb[:, 8].astype(int),
                     'runidx': runid,
-                    'nbr_coef':np.array(self.nbr_coef)
+                    'nbr_coef':np.array(self.nbr_coef),
+                    'nbr_sc': np.array(self.stx)
                 }
                 df = pd.DataFrame(df)
                 df = df.groupby('runidx').mean()

@@ -212,11 +212,14 @@ def _run(args):
     l21s = 0
     l1a_l1norm,  l1a_l2norm= 0, 0
     n_a_coef = 0
+    stx = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
         Mx = np.zeros(M.shape)
         n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
         Gx = np.dot(G[:, np.array(cl.active_set[-1])], cl.Acoef_)
+        sxy = SC[np.array(cl.active_set[-1]), :]
+        stx = np.sum(sxy[:, np.array(cl.active_set[-1])])*m_p
         if not int(includeMNE):
             for j in range(m_p):
                 Mx += np.dot(Gx[:, j*n:n*(j+1)], R[:, j:Mx.shape[1]+j])
@@ -233,7 +236,7 @@ def _run(args):
         l1a_l1norm = np.sum(np.abs(cl.Acoef_))
         l1a_l2norm = np.linalg.norm(cl.Acoef_)**2
 
-    return rms/(n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0], n_a_coef
+    return rms/(n_t*n_c), n, l21s, l1a_l1norm, l1a_l2norm, cl.l21_ratio, cl.la[0], n_a_coef, stx
 
 
 def _runCV(args):
@@ -305,8 +308,10 @@ def _runCV(args):
     R = cl.Scoef_.copy()
     l21_ratio = cl.l21_ratio
     n_a_coef = 0
+    stx = 0
     if len(R) > 0 and len(cl.Acoef_) > 0 and len(cl.active_set[-1]) > 0:
-
+        sxy = SC[np.array(cl.active_set[-1]), :]
+        stx = np.sum(sxy[:, np.array(cl.active_set[-1])])*m_p
         n_a_coef = np.sum(np.abs(cl.Acoef_) > 0)
         n = R.shape[0]
         nbr = n
@@ -349,7 +354,7 @@ def _runCV(args):
         l1a_l1norm = 0
         l1a_l2norm = 0
     rms = rms/(n_t*len(test_data))
-    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], n_a_coef, run_ix
+    return rms, nbr, l21s, l1a_l1norm, l1a_l2norm, l21_ratio, cl.la[0], n_a_coef, run_ix, stx
 
 def compute_criterion(M, results, criterion='bic', include_S=1):
     sigma2 = np.var(M)

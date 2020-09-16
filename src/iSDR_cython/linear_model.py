@@ -41,7 +41,7 @@ from . import utils
 
 class iSDRcore(object):
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
-    max_iter=[10000, 2000], random_state=None, selection='cyclic',
+    max_iter=[10000, 2000], random_state=2020, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
     normalize_Astep=False, S_tol=1e-6, A_tol=0.1, includeMNE=False):
         """

@@ -26,8 +26,8 @@ from cython cimport floating
 import warnings
 from sklearn.exceptions import ConvergenceWarning
 
-from sklearn.utils._cython_blas cimport (_axpy, _dot, _asum, _ger, _gemv, _nrm2, 
-                                   _copy, _scal)
+from sklearn.utils._cython_blas cimport (_axpy, _dot, _asum, _ger, _gemv, _nrm2,
+                                   _copy, _scal, _gemm)
 from sklearn.utils._cython_blas cimport RowMajor, ColMajor, Trans, NoTrans
 
 
@@ -176,13 +176,13 @@ cpdef enet_coordinate_descent_iSDR(np.ndarray[floating, ndim=1] w,
 
     for jj in range(n_s):
         s = 0.0
-        for ii in range(m_p):
-            for i in range(n_c):
-                s += X[i, jj + ii*n_s]**2
-        if s != 0.0:
-                mu_X[jj] =  1.0 / s
-        #if Lip[jj] != 0.0:
-        #    mu_X[jj] =  1.0 / Lip[jj]
+        #for ii in range(m_p):
+        #    for i in range(n_c):
+        #        s += X[i, jj + ii*n_s]**2
+        #if s != 0.0:
+        #        mu_X[jj] =  1.0 / s
+        if Lip[jj] != 0.0:
+            mu_X[jj] =  1.0 / Lip[jj]
 
     with nogil:
         # R = y - np.dot(X, w)
@@ -373,14 +373,14 @@ cpdef cd_mneiSDR(np.ndarray[floating, ndim=1] w,
 
     for jj in range(n_s):
         s = 0.0
-        for i in range(n_c):
-            s += G[i, jj]**2
-            for ii in range(m_p):
-                s += X[i, jj + ii*n_s]**2
-        if s != 0.0:
-                mu_X[jj] =  1.0 / s
-        #if Lip[jj] != 0:
-        #    mu_X[jj] =  1.0 / Lip[jj]
+        #for i in range(n_c):
+        #    s += G[i, jj]**2
+        #    for ii in range(m_p):
+        #        s += X[i, jj + ii*n_s]**2
+        #if s != 0.0:
+        #        mu_X[jj] =  1.0 / s
+        if Lip[jj] != 0:
+            mu_X[jj] =  1.0 / Lip[jj]
 
     with nogil:
         # R = y - np.dot(X, w)
@@ -428,6 +428,8 @@ cpdef cd_mneiSDR(np.ndarray[floating, ndim=1] w,
                     #_axpy(n_t_s, -1.0, &w_ii[0], 1, &tmp[0], 1)
                     for jj in range(m_p, n_t):
                         _gemv(ColMajor, NoTrans, n_c, m_p, -1, X_ptr + ii*n_c, n_c*n_s, &tmp[0] + jj - m_p, 1, 1, &R[0] + jj*n_c, 1)
+                    #for jj in range(m_p):
+                    #    _ger(ColMajor, n_c, n_t-m_p, -1, X_ptr + ii*n_c + jj*n_c*n_s, 1, &tmp[0] + jj, 1, &R[0]+ m_p*n_c, n_c)
                     for jj in range(m_p):
                         _gemv(ColMajor, NoTrans, n_c, 1, -1, &G[0,0] + ii*n_c, n_c, &tmp[0] + jj, 1, 1, &R[0] + jj*n_c, 1)
                 if d_w_ii > d_w_max:

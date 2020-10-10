@@ -41,9 +41,9 @@ from . import utils
 
 class iSDRcore(object):
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
-    max_iter=[10000, 2000], random_state=2020, selection='cyclic',
+    max_iter=[10000, 2000], random_state=None, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
-    normalize_Astep=False, S_tol=1e-6, A_tol=0.1, includeMNE=False):
+    normalize_Astep=False, S_tol=1e-6, A_tol=0.1, includeMNE=False, remove_mean=False):
         """
         Linear Model trained with the modified L21 prior as regularizer
            (aka the Mulitasklasso) and iSDR
@@ -144,6 +144,7 @@ class iSDRcore(object):
         self.A_tol = A_tol
         self.S_tol = S_tol
         self.includeMNE = includeMNE
+        self.remove_mean = remove_mean
         if np.abs(self.la[1] - 1) > 1 or self.la[1] < 0:
             raise ValueError("Wrong value %s should be [0, 1]" % self.la[1])
         if np.abs(self.la[0] - 100) > 100 or self.la[0]<0:
@@ -207,7 +208,7 @@ class iSDRcore(object):
         else:
             for i in range(self.n_source):
                 gi = X[:, i::self.n_source]
-                Lip[i] = 1.01*np.linalg.norm(np.dot(gi.T, gi), ord=2)
+                Lip[i] = np.linalg.norm(np.dot(gi.T, gi), ord=2)
 
         self.Scoef_, self.dual_gap_, self.eps_, self.n_iter_ = \
                 cd_fast.enet_coordinate_descent_iSDR(
@@ -271,12 +272,14 @@ class iSDRcore(object):
             raise ValueError("selection should be either random or cyclic.")
         random = (self.selection == 'random')
         Lip = np.zeros(G.shape[1], dtype=X.dtype.type, order='F')
-        if self.m_p == 1:
-            Lip = np.sum(np.dot(X.T, X), axis=0)
-        else:
-            for i in range(G.shape[1]):
-                gi = X[:, i::G.shape[1]]
-                Lip[i] = 1.01*np.linalg.norm(np.dot(gi.T, gi), ord=2)
+        #if self.m_p == 1:
+        #    Lip = np.sum(X * X, axis=0)
+        #else:
+        gi = np.zeros((G.shape[0], self.m_p + 1))
+        for i in range(G.shape[1]):
+            gi[:, 0] = G[:, i]
+            gi[:, 1:] = X[:, i::G.shape[1]]
+            Lip[i] = np.linalg.norm(np.dot(gi.T, gi), ord=2)
 
         Scoef_, self.dual_gap_, self.eps_,  self.n_iter_ = \
             cd_fast.cd_mneiSDR(
@@ -350,7 +353,7 @@ class iSDRcore(object):
             yx = y.copy()
 
         z = zx[:, 2*self.m_p:-self.m_p - 1]
-        G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
+        G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old, remove_mean=self.remove_mean)
         if self.old:
             yt = zx[:, 3*self.m_p:-self.m_p]
             yt = yt.reshape(-1, order='F')
@@ -455,6 +458,8 @@ class iSDRcore(object):
 
         n_active == number of active sources/regions
         """
+        self.s_dualgap = []
+        self.a_dualgap = []
         self.time = - time.time()
         self.Morig = M.copy()
         self.Gorig = G.copy()
@@ -483,8 +488,16 @@ class iSDRcore(object):
             previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1]  - 1))
         else:
             previous_j = np.zeros((Gtmp.shape[1], Mtmp.shape[1] + model_p - 1))
+        self.Scoef_ = np.zeros(previous_j.shape)
+        self.isdr_functional = []
         for i in range(nbr_iter):
             GAtmp = np.dot(Gtmp, A)
+            if self.includeMNE:
+                self.datafit = Mtmp[:, self.m_p:].copy()
+            else:
+                self.datafit = Mtmp.copy()
+            for ip in range(self.m_p):
+                self.datafit -= np.dot(GAtmp[:, ip*self.n_source:(ip+1)*self.n_source], self.Scoef_[:, ip:ip+self.datafit.shape[1]])
             """
             idx = []
             idy = []
@@ -544,11 +557,19 @@ class iSDRcore(object):
                 self.Scoef_ = []
                 self.time += time.time()
                 self.n_source = 0
+                self.isdr_functional.append(0)
                 break
 
             previous_j = self.Scoef_.copy()
+            self.Sl12 = np.sum(np.sqrt(np.sum(previous_j**2, axis=1)))
             A, _ = self.A_step(Gtmp, Mtmp, SCtmp, normalize=self.normalize)
-            self.Acoef_ = A
+            self.Al1 = np.sum(np.abs(A))
+            self.Al2 = 0.5*np.sum(A**2)
+            self.functional = 0.5*np.sum(self.datafit**2) + self.l21_ratio*self.Sl12 +\
+                         self.la[0]*self.la[1]*self.Al1 +\
+                         0.5*self.la[0]*(1-self.la[1])*self.Al2
+            self.isdr_functional.append(self.functional)
+            self.Acoef_ = A.copy()
             self.n_source = np.sum(idx)
 
             if t < S_tol:
@@ -620,7 +641,7 @@ class iSDRcore(object):
         self.eigs = pd.DataFrame(df).set_index('eig')
 
     def plot_effective(self, fmt='.3f', annot=True, cmap=None,
-                       fig_size = 5, mask_flag=True):
+                       fig_size = 5, mask_flag=True, labels_print=False):
         """
         Plotting function
         Plots the effective connectivity
@@ -641,15 +662,22 @@ class iSDRcore(object):
                 mask[A==0] = True
 
             plt.figure(figsize=(fig_size*self.m_p, fig_size))
-            g = sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
-            yticklabels=ylabel,cmap=cmap,mask=mask)
-            plt.title('Effective connectivity p=%s'%self.m_p)
+            if labels_print:
+                g = sns.heatmap(A, annot=annot, fmt=fmt, xticklabels=xlabel,
+                yticklabels=ylabel,cmap=cmap,mask=mask)
+            else:
+                g = sns.heatmap(A, annot=annot, fmt=fmt,
+                cmap=cmap,mask=mask)
+                plt.xticks([])
+                plt.yticks([])
+
+            plt.title('Effective connectivity p=%s'%self.m_p, y=1.05)
             n, m = A.shape
             idx = [i*n for i in range(m//n)]
             for i, k in enumerate(idx):
                 r = Rectangle((k, 0), n - 0.01, n - 0.01, fill=False, lw=3)
                 g.add_patch(r)
-                plt.text(i * n + n // 2, n + 0.5, r'$A_{}$'.format(m // n - i), fontsize=14, weight="bold")
+                plt.text(i * n + n // 2, -0.1, r'$A_{}$'.format(m // n - i), fontsize=14, weight="bold")
             plt.tight_layout()
         else:
             if self.verbose:
@@ -675,11 +703,24 @@ class iSDRcore(object):
             return None
         self.Jbias_corr = []
         active = self.active_set[-1]
+        if self.includeMNE:
+            self.datafit = self.Morig[:, self.m_p:].copy()
+        else:
+            self.datafit = self.Morig.copy()
         if len(active):
-            Gbig = utils.create_bigG(self.Gorig[:, active], self.Acoef_, self.Morig)
-            Z = linalg.lsmr(Gbig, self.Morig.reshape(-1, order='F'), atol=1e-12, btol=1e-12)
-            self.Jbias_corr = Z[0].reshape((len(active), self.Morig.shape[1] + self.m_p - 1), order='F')
+            Gbig = utils.create_bigG(self.Gorig[:, active], self.Acoef_, self.datafit)
+            Z = linalg.lsmr(Gbig, self.datafit.reshape(-1, order='F'), atol=1e-12, btol=1e-12)
+            self.Jbias_corr = Z[0].reshape((len(active), self.datafit.shape[1] + self.m_p - 1), order='F')
 
+
+
+            GAtmp = np.dot(self.Gorig[:, active], self.Acoef_)
+            for ip in range(self.m_p):
+                self.datafit -= np.dot(GAtmp[:, ip*self.n_source:(ip+1)*self.n_source], self.Jbias_corr[:, ip:ip+self.datafit.shape[1]])
+            self.functional = 0.5*np.sum(self.datafit**2) + self.l21_ratio*self.Sl12 +\
+                         self.la[0]*self.la[1]*self.Al1 +\
+                         0.5*self.la[0]*(1-self.la[1])*self.Al2
+            self.isdr_functional.append(self.functional)
     def get_params(self):
         params = dict(l21_ratio=self.l21_ratio/self.alpha_max,
                       la=[self.la[0]/(self.la_max*0.01), self.la[1]],
@@ -744,6 +785,17 @@ class eiSDRols(iSDRcore):
             normalize_Astep=normalize_Astep, S_tol=S_tol,
             A_tol=A_tol,
             includeMNE=True)
+#import ray
+#import psutil
+
+#num_cpus = psutil.cpu_count(logical=False)
+
+#ray.init(num_cpus=num_cpus)
+
+#@ray.remote
+#def f(arg):
+    # Do some image processing.
+#    return utils._run(arg)
 
 class iSDRcv():
     def __init__(self, model_p=[1], l21_values=[], la_values = [],
@@ -811,6 +863,7 @@ class iSDRcv():
         la_values = np.unique(la_values)
         la_ratio_values = np.unique(la_ratio_values)
         model_p = np.unique(model_p)
+        self.p_max = np.max(model_p)
         normalize = np.unique(normalize)
         if cv is None:
             prod = product(l21_values, la_values,la_ratio_values, model_p,
@@ -827,7 +880,7 @@ class iSDRcv():
             max_run = len(all_comb)
         np.random.seed(seed)
         number_list = np.arange(len(all_comb))
-        random.shuffle(number_list)
+        #random.shuffle(number_list)
         number_list = number_list[:max_run]
         self.all_comb = all_comb[number_list]
         self.parallel = parallel
@@ -871,14 +924,21 @@ class iSDRcv():
             self.all_comb = combinations
         try:
             if self.parallel:
-                nbr_cpu = multiprocessing.cpu_count() - 2
+                nbr_cpu = multiprocessing.cpu_count() - 3
                 if nbr_cpu < 1:
                     nbr_cpu = 1
                 with multiprocessing.Pool(nbr_cpu) as pool:
                    out = list(tqdm(pool.imap(par_func, self.all_comb), total=len(self.all_comb)))
-                from joblib import Parallel, delayed
-                #with Parallel(backend='threading', n_jobs=nbr_cpu, require='sharedmem') as parallel:
-                #out = Parallel(n_jobs=nbr_cpu, require='sharedmem')(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
+
+                #ray.shutdown()
+                #ray.init(ignore_reinit_error=True)
+                #futures = [f.remote(self.all_comb[i]) for i in range(len(self.all_comb))]
+                #out = ray.get(futures)
+
+                #from joblib import Parallel, delayed, parallel_backend
+                #with parallel_backend("threading"):
+                #with Parallel(backend='threading', n_jobs=nbr_cpu) as parallel:
+                #    out = parallel(delayed(par_func)(self.all_comb[i]) for i in tqdm(range(len(self.all_comb))))
                 #pool.terminate()
                 if self.cv is None:
                     self.rms, self.nbr, self.l21a, self.l1a_l1norm, self.l1a_l2norm, self.l21_ratio, self.la, self.nbr_coef, self.stx = zip(*out)

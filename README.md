@@ -167,9 +167,10 @@ For how to use this package to reconstruct the brain activation from EEG/MEG
 check examples/iSDR_example
 
 ## Cite
+(1) Belaoucha B, Papadopoulo T. ElasticNet iSDR to reconstruct both sparse brain activity and effective connectivity. 2021 38th Annual International Conference of the IEEE Engineering in Medicine and Biology Society (EMBC), April 2021, Nice, France. 2021.
 
-(1) Belaoucha B, Papadopoulo T. Structural connectivity to reconstruct brain activation and effective connectivity between brain regions. J Neural Eng. 2020;17(3):035006. Published 2020 Jun 29. doi:10.1088/1741-2552/ab8b2b
+(2) Belaoucha B, Papadopoulo T. Structural connectivity to reconstruct brain activation and effective connectivity between brain regions. J Neural Eng. 2020;17(3):035006. Published 2020 Jun 29. doi:10.1088/1741-2552/ab8b2b
 
-(2) Brahim Belaoucha, Théodore Papadopoulo. Large brain effective network from EEG/MEG data and dMR information. PRNI 2017 – 7th International Workshop on Pattern Recognition in NeuroImaging, Jun 2017, Toronto, Canada.
+(3) Brahim Belaoucha, Théodore Papadopoulo. Large brain effective network from EEG/MEG data and dMR information. PRNI 2017 – 7th International Workshop on Pattern Recognition in NeuroImaging, Jun 2017, Toronto, Canada.
 
-(3) Brahim Belaoucha, Mouloud Kachouane, Théodore Papadopoulo. Multivariate Autoregressive Model Constrained by Anatomical Connectivity to Reconstruct Focal Sources. 2016 38th Annual International Conference of the IEEE Engineering in Medicine and Biology Society (EMBC), Aug 2016, Orlando, United States. 2016.
+(4) Brahim Belaoucha, Mouloud Kachouane, Théodore Papadopoulo. Multivariate Autoregressive Model Constrained by Anatomical Connectivity to Reconstruct Focal Sources. 2016 38th Annual International Conference of the IEEE Engineering in Medicine and Biology Society (EMBC), Aug 2016, Orlando, United States. 2016.

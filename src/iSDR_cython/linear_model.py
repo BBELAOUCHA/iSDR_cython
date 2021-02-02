@@ -43,7 +43,7 @@ class iSDRcore(object):
     def __init__(self, l21_ratio=1.0, la=[0.0, 1],  copy_X=True,
     max_iter=[10000, 2000], random_state=None, selection='cyclic',
     verbose=0, old_version=False, normalize_Sstep=False,
-    normalize_Astep=False, S_tol=1e-6, A_tol=0.1, includeMNE=False, remove_mean=False):
+    normalize_Astep=False, S_tol=1e-6, A_tol=0.1, includeMNE=False):
         """
         Linear Model trained with the modified L21 prior as regularizer
            (aka the Mulitasklasso) and iSDR
@@ -144,7 +144,7 @@ class iSDRcore(object):
         self.A_tol = A_tol
         self.S_tol = S_tol
         self.includeMNE = includeMNE
-        self.remove_mean = remove_mean
+
         if np.abs(self.la[1] - 1) > 1 or self.la[1] < 0:
             raise ValueError("Wrong value %s should be [0, 1]" % self.la[1])
         if np.abs(self.la[0] - 100) > 100 or self.la[0]<0:
@@ -353,7 +353,7 @@ class iSDRcore(object):
             yx = y.copy()
 
         z = zx[:, 2*self.m_p:-self.m_p - 1]
-        G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old, remove_mean=self.remove_mean)
+        G, idx = utils.construct_J(X, SC, z, self.m_p, old=self.old)
         if self.old:
             yt = zx[:, 3*self.m_p:-self.m_p]
             yt = yt.reshape(-1, order='F')
@@ -1014,7 +1014,7 @@ class eiSDR_cv():
     def __init__(self, l21_values=[1e-3], la_values=[1e-3],
     la_ratio_values=[1], normalize=[0], model_p=[1], verbose=False,
     max_run=None, old_version=False, parallel=True,
-    normalize_Astep=[0], normalize_Sstep = [0], includeMNE=False):
+    normalize_Astep=[0], normalize_Sstep = [0], includeMNE=False, cv=None):
         """
         This function run grid search cross validation and return the optimal values
         Parameters
@@ -1071,6 +1071,7 @@ class eiSDR_cv():
         self.time = None
         self.normalize_Astep = normalize_Astep
         self.normalize_Sstep = normalize_Sstep
+        self.cv = cv
 
     def get_opt(self, G, M, SC):
         self.time = -time.time()
@@ -1085,7 +1086,8 @@ class eiSDR_cv():
                     parallel=self.parallel,
                     normalize_Astep = self.normalize_Astep,
                     normalize_Sstep = self.normalize_Sstep,
-                    includeMNE=self.includeMNE
+                    includeMNE=self.includeMNE,
+                    cv=self.cv
                     )
         if self.verbose:
             print('Total number of combination %s'%len(cv.all_comb))

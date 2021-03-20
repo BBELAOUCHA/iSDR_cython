@@ -167,7 +167,12 @@ For how to use this package to reconstruct the brain activation from EEG/MEG
 check examples/iSDR_example
 
 ## Cite
+
+if you use eiSDR, please cite:
+
 (1) Belaoucha B, Papadopoulo T. ElasticNet iSDR to reconstruct both sparse brain activity and effective connectivity. 2021 Annual International Conference of the IEEE Engineering in Medicine and Biology Society (EMBC), April 2021, Nice, France. 2021.
+
+if you use iSDR, please cite one of the following papers:
 
 (2) Belaoucha B, Papadopoulo T. Structural connectivity to reconstruct brain activation and effective connectivity between brain regions. J Neural Eng. 2020;17(3):035006. Published 2020 Jun 29. doi:10.1088/1741-2552/ab8b2b
 

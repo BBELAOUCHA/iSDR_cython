@@ -1,8 +1,4 @@
-# Author: Alexandre Gramfort <alexandre.gramfort@inria.fr>
-#         Fabian Pedregosa <fabian.pedregosa@inria.fr>
-#         Olivier Grisel <olivier.grisel@ensta.org>
-#         Alexis Mignon <alexis.mignon@gmail.com>
-#         Manoj Kumar <manojkumarsivaraj334@gmail.com>
+# inspired from: https://github.com/scikit-learn/scikit-learn/blob/main/sklearn/linear_model/_cd_fast.pyx
 #
 # License: BSD 3 clause
 #

@@ -92,3 +92,22 @@ for p in range(10):
     if before == A.shape[0]:
         break
     before = A.shape[0]
+
+
+
+
+#     matrix = np.zeros((A.shape[1], A.shape[1]))
+#     for i in range(m_p):
+#         matrix[:A.shape[0], i*A.shape[0]: (i+1)*A.shape[0]] = A[:, (m_p-i-1)*A.shape[0]:(m_p-i)*A.shape[0]]
+#     matrix[:A.shape[0], :] = A
+#     for i in range(m_p-1):
+#         matrix[A.shape[0]*(i+1):(i+2)*A.shape[0], A.shape[0]*i:(i+1)*A.shape[0]] = np.eye(A.shape[0])
+#     eigenvalues, eigenvectors = np.linalg.eig(matrix)
+
+#     spectral_radius = np.max(np.abs(eigenvalues))
+
+#     # Normalize the matrix to ensure eigenvalues are smaller than 1 in absolute value
+#     if spectral_radius > 1:
+#         scaling_factor = 0.95 / spectral_radius  # Choose a scaling factor
+#         A = A * scaling_factor
+    # print("scaling_factor: ", scaling_factor, "spectral_radius: ", spectral_radius)

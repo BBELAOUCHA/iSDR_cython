@@ -177,3 +177,32 @@ def Astep(G, M, SC, Jt, m_p):
         idx = SCx > 0
         A[idx] = model.coef_
     return A
+
+
+def Compute_alpha_max(Ga, M, model_p):
+    """
+    This function compute the alpha max which is the smallest regularization
+    parameter alpha that results to no active brain region when using
+    l21 mixed norm (MxNE)
+    
+    Parameters:
+    ----------
+        Ga: GxA where G is the gain matrix and A is the MAR model
+        M: The EEG or MEG measurements
+        model_p: The order of the MAR model
+
+    Return:
+    ---------
+    alpha_max: the regularization value that results to no active brain
+              region
+    """
+    _, n_s = Ga.shape
+    n_s = n_s//model_p
+    GM = np.zeros((M.shape[1]*model_p, n_s))
+    alpha_max = 0
+    for i in range(n_s):
+        for j in range(model_p):
+            Ax = np.dot(M.T, Ga[:, j*n_s + i])
+            GM[j*M.shape[1]:(j+1)*M.shape[1], i] = Ax
+    alpha_max = np.sqrt(np.sum(np.power(GM, 2, GM), axis=0))
+    return np.max(alpha_max)
